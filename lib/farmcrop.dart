@@ -416,13 +416,16 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
           backgroundColor: Color(0xff2af598),
         ),
         body: FutureBuilder<List<String>>(
-          future: fetchAll(http.Client(),farmid,http.Client(),http.Client(),http.Client()),
+          future: fetchAll(http.Client(), farmid, http.Client(), http.Client(), http.Client()),
           builder: (context, snapshot) {
-            if (snapshot.hasError)
+            if (snapshot.hasError) {
               print(snapshot.error.toString());
-            if(isLoading && snapshot.hasData){
+            }
+
+            if (isLoading && snapshot.hasData && snapshot.data != null && snapshot.data!.length >= 12) {
               isLoading = false;
-              allfarmcrops =  parseFarmcrops(snapshot.data![0]);
+
+              allfarmcrops = parseFarmcrops(snapshot.data![0]);
               cropTypes = parseCrops(snapshot.data![1]);
               measuringUnits = parseMeasring(snapshot.data![2]);
               irrigationMethods = parseIrrigationMethod(snapshot.data![3]);
@@ -434,38 +437,37 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
               PREVIOUSIdealGrid = parsePREVIOUSIdealGrid(snapshot.data![9]);
               FarmcropFilter = parseFarmcropFilter(snapshot.data![10]);
               PREVIOUSFarmcropFilter = parsePREVIOUSFarmcropFilter(snapshot.data![11]);
-              selectedfarmCropFilter = FarmcropFilterObject();
-              if(!FarmcropFilter!.isEmpty)
-                selectedfarmCropFilter = FarmcropFilter![0];
-              if(selectedfarmCropFilter == null){
-                dailyDataSource = DailyDataSource(DailyRecords!,'0');
-                practicalDataSource = PracticalDataSource(PracticalGrid!,'0');
-                idealDataSource = IdealDataSource(IdealGrid!,'0');
-              }else{
-                dailyDataSource = DailyDataSource(DailyRecords!,selectedfarmCropFilter.farmcropId!);
-                practicalDataSource = PracticalDataSource(PracticalGrid!,selectedfarmCropFilter.farmcropId!);
-                idealDataSource = IdealDataSource(IdealGrid!,selectedfarmCropFilter.farmcropId!);
-              }
-              PREVIOUSselectedfarmCropFilter = PREVIOUSFarmcropFilterObject();  // Replace with actual instance
 
-              if(!PREVIOUSFarmcropFilter!.isEmpty)
-                PREVIOUSselectedfarmCropFilter = PREVIOUSFarmcropFilter![0];
-              if(PREVIOUSselectedfarmCropFilter == null){
-                PREVIOUSdailyDataSource = PREVIOUSDailyDataSource(PREVIOUSDailyRecords!,'0');
-                PREVIOUSpracticalDataSource = PREVIOUSPracticalDataSource(PREVIOUSPracticalGrid!,'0');
-                PREVIOUSidealDataSource = PREVIOUSIdealDataSource(PREVIOUSIdealGrid!,'0');
-              }else{
-                PREVIOUSdailyDataSource = PREVIOUSDailyDataSource(PREVIOUSDailyRecords!,PREVIOUSselectedfarmCropFilter.farmcropId!);
-                PREVIOUSpracticalDataSource = PREVIOUSPracticalDataSource(PREVIOUSPracticalGrid!,PREVIOUSselectedfarmCropFilter.farmcropId!);
-                PREVIOUSidealDataSource = PREVIOUSIdealDataSource(PREVIOUSIdealGrid!,PREVIOUSselectedfarmCropFilter.farmcropId!);
-              }
+              selectedfarmCropFilter = FarmcropFilter != null && FarmcropFilter!.isNotEmpty
+                  ? FarmcropFilter![0]
+                  : FarmcropFilterObject();
+
+              dailyDataSource = DailyDataSource(DailyRecords!, selectedfarmCropFilter?.farmcropId ?? '0');
+              practicalDataSource = PracticalDataSource(PracticalGrid!, selectedfarmCropFilter?.farmcropId ?? '0');
+              idealDataSource = IdealDataSource(IdealGrid!, selectedfarmCropFilter?.farmcropId ?? '0');
+
+              PREVIOUSselectedfarmCropFilter =
+              PREVIOUSFarmcropFilter != null && PREVIOUSFarmcropFilter!.isNotEmpty
+                  ? PREVIOUSFarmcropFilter![0]
+                  : PREVIOUSFarmcropFilterObject();
+
+              PREVIOUSdailyDataSource =
+                  PREVIOUSDailyDataSource(PREVIOUSDailyRecords!, PREVIOUSselectedfarmCropFilter?.farmcropId ?? '0');
+              PREVIOUSpracticalDataSource =
+                  PREVIOUSPracticalDataSource(PREVIOUSPracticalGrid!, PREVIOUSselectedfarmCropFilter?.farmcropId ?? '0');
+              PREVIOUSidealDataSource =
+                  PREVIOUSIdealDataSource(PREVIOUSIdealGrid!, PREVIOUSselectedfarmCropFilter?.farmcropId ?? '0');
+
               NotificationCounter = 0;
-              for ( farmcropObject myfarmcrop in allfarmcrops! ){
-                if(myfarmcrop.nextirrigationdate!.isAfter(DateTime.now())){
-                  scheduleNotificationMan(myfarmcrop.nextirrigationdate!, ++NotificationCounter, myfarmcrop.cropname!);
+              for (farmcropObject myfarmcrop in allfarmcrops ?? []) {
+                if (myfarmcrop.nextirrigationdate != null &&
+                    myfarmcrop.nextirrigationdate!.isAfter(DateTime.now())) {
+                  scheduleNotificationMan(
+                      myfarmcrop.nextirrigationdate!, ++NotificationCounter, myfarmcrop.cropname ?? '');
                 }
               }
             }
+
             return !snapshot.hasData
                 ? Center(child: CircularProgressIndicator())
                 : NestedScrollView(
