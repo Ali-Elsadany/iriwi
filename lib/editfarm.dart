@@ -1213,7 +1213,7 @@ detailedfarmObject parseDetailedFarms(String responseBody) {
     dischargerate: parsed['dischargerate'].toString(),
     gasuseage: parsed['gasuseage'].toString(),
     gasprice: parsed['gasprice'].toString(),
-    // farmId: parsed['farmId'] as int,
+     farmId: parsed['farmId'] as int,
 
   );
   return xc;
@@ -1246,7 +1246,7 @@ class detailedfarmObject {
       dischargerate: (json['dischargerate']) as String,
       gasuseage: (json['gasuseage']) as String,
       gasprice: (json['gasprice']) as String,
-      // farmId: json['farmId'] as int,
+      farmId: json['farmId'] as int,
     );
   }
 }
