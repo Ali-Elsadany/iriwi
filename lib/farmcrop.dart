@@ -501,6 +501,8 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                                 ),
                               ),
                               Container(
+                                  width: 300,
+                                  height: 100,
                                 margin: EdgeInsets.symmetric(horizontal: 25,vertical: 15),
                                 alignment: Alignment.bottomRight,
                                 child: ElevatedButton(
@@ -2673,319 +2675,647 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
         Navigator.of(context).pushReplacement(goToFarmCrops(farmid));
       },
     );
-
     return AlertDialog(
-      title: Text("اضافة محصول", textAlign: TextAlign.center,),
-      content: loading? Center(child: CircularProgressIndicator()) : Form(
-        key: formkey,
-        child: Container(
-          height: 350,
-          child: Scrollbar(
-            child: ListView(
+      title: const Text("إضافة محصول جديد"),
+      content: loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+            maxWidth: MediaQuery.of(context).size.width * 0.9,
+          ),
+          child: Form(
+            key: formkey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:  [
+              Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
-                        padding: EdgeInsets.all(0),
-                      ),
-                      child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
-                      onPressed: () {
-                        showDatePicker(
-                          context: context,
-                          initialDate: plantingDate ?? DateTime.now(),
-                          firstDate: DateTime.now().subtract(Duration(days: 200)),
-                          lastDate: DateTime.now(),
-                        ).then((value) {
-                          if (value != null) {
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
+                    padding: EdgeInsets.all(0),
+                  ),
+                  child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+                  onPressed: () {
+                    showDatePicker(
+                      context: context,
+                      initialDate: plantingDate ?? DateTime.now(),
+                      firstDate: DateTime.now().subtract(Duration(days: 200)),
+                      lastDate: DateTime.now(),
+                    ).then((value) {
+                      if (value != null) {
+                        setState(() {
+                          plantingDate = value;
+                          plantingDateController.text = formatter.format(value);
+                        });
+                      }
+                    });
+                  },
+                ),
+
+                SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        style: TextStyle(fontFamily: 'OpenSans'),
+                        //initialValue: 'a7a ya gedy',
+                        controller: plantingDateController,
+                        cursorColor: Color(0xff26a69a),
+                        //enabled: false,
+                        readOnly: true,
+                        decoration: InputDecoration(labelText: 'تاريخ الزراعة',focusColor: Color(0xff26a69a)),
+                        validator: (String? value){
+                          if(value!.isEmpty){
+                            return "برجاء ادخال تاريخ الزراعة";
+                          }
+                        },
+                        onTap: () {
+                          showDatePicker(
+                              context: context,
+                              initialDate: plantingDate == null ? DateTime.now() : plantingDate,
+                              firstDate: DateTime.now().add(Duration(days: -200)),
+                              lastDate: DateTime.now()).then((value){
                             setState(() {
                               plantingDate = value;
-                              plantingDateController.text = formatter.format(value);
+                              plantingDateController.text = formatter.format(value!);
+                              //mydate = formatter.format(value);
                             });
-                          }
-                        });
-                      },
-                    ),
-
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                            //initialValue: 'a7a ya gedy',
-                            controller: plantingDateController,
-                            cursorColor: Color(0xff26a69a),
-                            //enabled: false,
-                            readOnly: true,
-                            decoration: InputDecoration(labelText: 'تاريخ الزراعة',focusColor: Color(0xff26a69a)),
-                            validator: (String? value){
-                              if(value!.isEmpty){
-                                return "برجاء ادخال تاريخ الزراعة";
-                              }
-                            },
-                            onTap: () {
-                              showDatePicker(
-                                  context: context,
-                                  initialDate: plantingDate == null ? DateTime.now() : plantingDate,
-                                  firstDate: DateTime.now().add(Duration(days: -200)),
-                                  lastDate: DateTime.now()).then((value){
-                                setState(() {
-                                  plantingDate = value;
-                                  plantingDateController.text = formatter.format(value!);
-                                  //mydate = formatter.format(value);
-                                });
-                              });
-                            },
-                            onSaved: (String? value){
-                              //farmname = value;
-                            },
-                          ),
-                        ],
+                          });
+                        },
+                        onSaved: (String? value){
+                          //farmname = value;
+                        },
                       ),
-                    ),
-                  ],
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
-                        padding: EdgeInsets.all(0),
-                      ),
-                      child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
-                      onPressed: () {
-                        showDatePicker(
-                          context: context,
-                          initialDate: lastIrrigationDate ?? DateTime.now(),
-                          firstDate: DateTime.now().subtract(Duration(days: 200)),
-                          lastDate: DateTime.now(),
-                        ).then((value) {
-                          if (value != null) {
-                            setState(() {
-                              lastIrrigationDate = value;
-                              lastIrrigationDateController.text = formatter.format(value);
-                            });
-                          }
-                        });
-                      },
-                    ),
-
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                            //initialValue: 'a7a ya gedy',
-                            controller: lastIrrigationDateController,
-                            cursorColor: Color(0xff26a69a),
-                            //enabled: false,
-                            readOnly: true,
-                            decoration: InputDecoration(labelText: 'تاريخ اخر رية',focusColor: Color(0xff26a69a)),
-                            validator: (String? value){
-                              if(value!.isEmpty){
-                                return "برجاء ادخال تاريخ اخر رية";
-                              }
-                            },
-                            onTap: () {
-                              showDatePicker(
-                                  context: context,
-                                  initialDate: lastIrrigationDate == null ? DateTime.now() : lastIrrigationDate,
-                                  firstDate: DateTime.now().add(Duration(days: -200)),
-                                  lastDate: DateTime.now()).then((value){
-                                setState(() {
-                                  lastIrrigationDate = value;
-                                  lastIrrigationDateController.text = formatter.format(value!);
-                                  //mydate = formatter.format(value);
-                                });
-                              });
-                            },
-                            onSaved: (String? value){
-                              //farmname = value;
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                DropdownButtonFormField<cropObject>(
-                  validator: (cropObject? value){
-                    if(value == null){
-                      return "اختر نوع المحصول";
-                    }
-                  },
-                  onSaved: (cropObject? value){
-                    croptypeobject = value;
-                  },
-                  isExpanded: true,
-                  value: croptypeobject,
-                  icon: Icon(Icons.arrow_drop_down),
-                  iconSize: 24,
-                  elevation: 16,
-                  style: TextStyle(color: Colors.black,fontSize: 18),
-                  onChanged: (cropObject? newValue) {
-                    this.croptypeobject = newValue;
-                    if(croptypeobject!.name!.indexOf('رز') >= 0){
-                      rice = true;
-                    }else{
-                      rice = false;
-                      shara2y = null;
-                      mashtal = null;
-                    }
-                    setState(() {
-                    });
-                  },
-                  hint: Text('اختر نوع المحصول'),
-                  items: allcroptypes
-                      .map<DropdownMenuItem<cropObject>>((cropObject value) {
-                    return DropdownMenuItem<cropObject>(
-                      value: value,
-                      child: Text(value.name!),
-                    );
-                  }).toList(),
-                ),
-                DropdownButtonFormField<irrigationMethodObject>(
-                  validator: (irrigationMethodObject? value){
-                    if(value == null){
-                      return "اختر نوع الري";
-                    }
-                  },
-                  onSaved: (irrigationMethodObject? value){
-                    irrigationMethod = value;
-                  },
-                  isExpanded: true,
-                  value: irrigationMethod,
-                  icon: Icon(Icons.arrow_drop_down),
-                  iconSize: 24,
-                  elevation: 16,
-                  style: TextStyle(color: Colors.black,fontSize: 18),
-                  onChanged: (irrigationMethodObject? newValue) {
-                    this.irrigationMethod = newValue;
-                    setState(() {
-                    });
-                  },
-                  hint: Text('اختر نوع الري'),
-                  items: irrigationMethods
-                      .map<DropdownMenuItem<irrigationMethodObject>>((irrigationMethodObject value) {
-                    return DropdownMenuItem<irrigationMethodObject>(
-                      value: value,
-                      child: Text(value.name!),
-                    );
-                  }).toList(),
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                            //initialValue: 'a7a ya gedy',
-                            cursorColor: Color(0xff26a69a),
-                            decoration: InputDecoration(labelText: 'المساحة المزروعة',focusColor: Color(0xff26a69a)),
-                            validator: (String? value){
-                              if(value!.isEmpty){
-                                return "برجاء ادخال المساحة";
-                              }
-                            },
-                            onSaved: (String? value){
-                              area = value;
-                            },
-                            inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          DropdownButtonFormField<MeasringObject>(
-                            validator: (MeasringObject? value){
-                              if(value == null){
-                                return "اختر الوحدة";
-                              }
-                            },
-                            onSaved: (MeasringObject? value){
-                              measuringunit = value;
-                            },
-                            isExpanded: true,
-                            value: measuringunit,
-                            icon: Icon(Icons.arrow_drop_down),
-                            iconSize: 24,
-                            elevation: 16,
-                            style: TextStyle(color: Colors.black,fontSize: 18),
-                            onChanged: (MeasringObject? newValue) {
-                              this.measuringunit = newValue;
-                              setState(() {
-                              });
-                            },
-                            hint: Text('اختر الوحدة'),
-                            items: measuringUnits
-                                .map<DropdownMenuItem<MeasringObject>>((MeasringObject value) {
-                              return DropdownMenuItem<MeasringObject>(
-                                value: value,
-                                child: Text(value.name!),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                  //initialValue: 'a7a ya gedy',
-                  cursorColor: Color(0xff26a69a),
-                  decoration: InputDecoration(labelText: 'عدد ساعات رية الزراعه',focusColor: Color(0xff26a69a)),
-                  onSaved: (String? value){
-                    initialIrrigationHours = value;
-                  },
-                  inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                ),
-                if(rice)
-                TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                  //initialValue: 'a7a ya gedy',
-                  cursorColor: Color(0xff26a69a),
-                  decoration: InputDecoration(labelText: 'عدد ساعات ري المشتل',focusColor: Color(0xff26a69a)),
-                  onSaved: (String? value){
-                    mashtal = value;
-                  },
-                  inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                ),
-                if(rice)
-                TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                  //initialValue: 'a7a ya gedy',
-                  cursorColor: Color(0xff26a69a),
-                  decoration: InputDecoration(labelText: 'عدد ساعات طفي الشراقي',focusColor: Color(0xff26a69a)),
-                  onSaved: (String? value){
-                    shara2y = value;
-                  },
-                  inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ],
+                  ),
                 ),
               ],
+            ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
+                      padding: EdgeInsets.all(0),
+                    ),
+                    child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+                    onPressed: () {
+                      showDatePicker(
+                        context: context,
+                        initialDate: lastIrrigationDate ?? DateTime.now(),
+                        firstDate: DateTime.now().subtract(Duration(days: 200)),
+                        lastDate: DateTime.now(),
+                      ).then((value) {
+                        if (value != null) {
+                          setState(() {
+                            lastIrrigationDate = value;
+                            lastIrrigationDateController.text = formatter.format(value);
+                          });
+                        }
+                      });
+                    },
+                  ),
+
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          style: TextStyle(fontFamily: 'OpenSans'),
+                          //initialValue: 'a7a ya gedy',
+                          controller: lastIrrigationDateController,
+                          cursorColor: Color(0xff26a69a),
+                          //enabled: false,
+                          readOnly: true,
+                          decoration: InputDecoration(labelText: 'تاريخ اخر رية',focusColor: Color(0xff26a69a)),
+                          validator: (String? value){
+                            if(value!.isEmpty){
+                              return "برجاء ادخال تاريخ اخر رية";
+                            }
+                          },
+                          onTap: () {
+                            showDatePicker(
+                                context: context,
+                                initialDate: lastIrrigationDate == null ? DateTime.now() : lastIrrigationDate,
+                                firstDate: DateTime.now().add(Duration(days: -200)),
+                                lastDate: DateTime.now()).then((value){
+                              setState(() {
+                                lastIrrigationDate = value;
+                                lastIrrigationDateController.text = formatter.format(value!);
+                                //mydate = formatter.format(value);
+                              });
+                            });
+                          },
+                          onSaved: (String? value){
+                            //farmname = value;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              DropdownButtonFormField<cropObject>(
+                validator: (cropObject? value){
+                  if(value == null){
+                    return "اختر نوع المحصول";
+                  }
+                },
+                onSaved: (cropObject? value){
+                  croptypeobject = value;
+                },
+                isExpanded: true,
+                value: croptypeobject,
+                icon: Icon(Icons.arrow_drop_down),
+                iconSize: 24,
+                elevation: 16,
+                style: TextStyle(color: Colors.black,fontSize: 18),
+                onChanged: (cropObject? newValue) {
+                  this.croptypeobject = newValue;
+                  if(croptypeobject!.name!.indexOf('رز') >= 0){
+                    rice = true;
+                  }else{
+                    rice = false;
+                    shara2y = null;
+                    mashtal = null;
+                  }
+                  setState(() {
+                  });
+                },
+                hint: Text('اختر نوع المحصول'),
+                items: allcroptypes
+                    .map<DropdownMenuItem<cropObject>>((cropObject value) {
+                  return DropdownMenuItem<cropObject>(
+                    value: value,
+                    child: Text(value.name!),
+                  );
+                }).toList(),
+              ),
+              DropdownButtonFormField<irrigationMethodObject>(
+                validator: (irrigationMethodObject? value){
+                  if(value == null){
+                    return "اختر نوع الري";
+                  }
+                },
+                onSaved: (irrigationMethodObject? value){
+                  irrigationMethod = value;
+                },
+                isExpanded: true,
+                value: irrigationMethod,
+                icon: Icon(Icons.arrow_drop_down),
+                iconSize: 24,
+                elevation: 16,
+                style: TextStyle(color: Colors.black,fontSize: 18),
+                onChanged: (irrigationMethodObject? newValue) {
+                  this.irrigationMethod = newValue;
+                  setState(() {
+                  });
+                },
+                hint: Text('اختر نوع الري'),
+                items: irrigationMethods
+                    .map<DropdownMenuItem<irrigationMethodObject>>((irrigationMethodObject value) {
+                  return DropdownMenuItem<irrigationMethodObject>(
+                    value: value,
+                    child: Text(value.name!),
+                  );
+                }).toList(),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          style: TextStyle(fontFamily: 'OpenSans'),
+                          //initialValue: 'a7a ya gedy',
+                          cursorColor: Color(0xff26a69a),
+                          decoration: InputDecoration(labelText: 'المساحة المزروعة',focusColor: Color(0xff26a69a)),
+                          validator: (String? value){
+                            if(value!.isEmpty){
+                              return "برجاء ادخال المساحة";
+                            }
+                          },
+                          onSaved: (String? value){
+                            area = value;
+                          },
+                          inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        DropdownButtonFormField<MeasringObject>(
+                          validator: (MeasringObject? value){
+                            if(value == null){
+                              return "اختر الوحدة";
+                            }
+                          },
+                          onSaved: (MeasringObject? value){
+                            measuringunit = value;
+                          },
+                          isExpanded: true,
+                          value: measuringunit,
+                          icon: Icon(Icons.arrow_drop_down),
+                          iconSize: 24,
+                          elevation: 16,
+                          style: TextStyle(color: Colors.black,fontSize: 18),
+                          onChanged: (MeasringObject? newValue) {
+                            this.measuringunit = newValue;
+                            setState(() {
+                            });
+                          },
+                          hint: Text('اختر الوحدة'),
+                          items: measuringUnits
+                              .map<DropdownMenuItem<MeasringObject>>((MeasringObject value) {
+                            return DropdownMenuItem<MeasringObject>(
+                              value: value,
+                              child: Text(value.name!),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              TextFormField(
+                style: TextStyle(fontFamily: 'OpenSans'),
+                //initialValue: 'a7a ya gedy',
+                cursorColor: Color(0xff26a69a),
+                decoration: InputDecoration(labelText: 'عدد ساعات رية الزراعه',focusColor: Color(0xff26a69a)),
+                onSaved: (String? value){
+                  initialIrrigationHours = value;
+                },
+                inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+              ),
+              if(rice)
+            TextFormField(
+        style: TextStyle(fontFamily: 'OpenSans'),
+        //initialValue: 'a7a ya gedy',
+        cursorColor: Color(0xff26a69a),
+        decoration: InputDecoration(labelText: 'عدد ساعات ري المشتل',focusColor: Color(0xff26a69a)),
+        onSaved: (String? value){
+          mashtal = value;
+        },
+        inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+        keyboardType: TextInputType.numberWithOptions(decimal: true),
+      ),
+        if(rice)
+    TextFormField(
+      style: TextStyle(fontFamily: 'OpenSans'),
+      //initialValue: 'a7a ya gedy',
+      cursorColor: Color(0xff26a69a),
+      decoration: InputDecoration(labelText: 'عدد ساعات طفي الشراقي',focusColor: Color(0xff26a69a)),
+      onSaved: (String? value){
+        shara2y = value;
+      },
+      inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+      keyboardType: TextInputType.numberWithOptions(decimal: true),
+    ),
+    ],
             ),
           ),
         ),
       ),
-      actions: loading?[]:[
-        cancelButton,
-        submitButton
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("إلغاء"),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (formkey.currentState!.validate()) {
+              // حفظ البيانات هنا
+              Navigator.pop(context);
+            }
+          },
+          child: const Text("حفظ"),
+        ),
       ],
     );
+    // return AlertDialog(
+    //   title: Text("اضافة محصول", textAlign: TextAlign.center,),
+    //   content: loading? Center(child: CircularProgressIndicator()) : Form(
+    //     key: formkey,
+    //     child: Container(
+    //       height: 350,
+    //       child: Scrollbar(
+    //         child: ListView(
+    //           children: [
+    //             Row(
+    //               crossAxisAlignment: CrossAxisAlignment.end,
+    //               children: [
+    //                 ElevatedButton(
+    //                   style: ElevatedButton.styleFrom(
+    //                     backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
+    //                     padding: EdgeInsets.all(0),
+    //                   ),
+    //                   child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+    //                   onPressed: () {
+    //                     showDatePicker(
+    //                       context: context,
+    //                       initialDate: plantingDate ?? DateTime.now(),
+    //                       firstDate: DateTime.now().subtract(Duration(days: 200)),
+    //                       lastDate: DateTime.now(),
+    //                     ).then((value) {
+    //                       if (value != null) {
+    //                         setState(() {
+    //                           plantingDate = value;
+    //                           plantingDateController.text = formatter.format(value);
+    //                         });
+    //                       }
+    //                     });
+    //                   },
+    //                 ),
+    //
+    //                 SizedBox(width: 10),
+    //                 Expanded(
+    //                   child: Column(
+    //                     children: [
+    //                       TextFormField(
+    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                         //initialValue: 'a7a ya gedy',
+    //                         controller: plantingDateController,
+    //                         cursorColor: Color(0xff26a69a),
+    //                         //enabled: false,
+    //                         readOnly: true,
+    //                         decoration: InputDecoration(labelText: 'تاريخ الزراعة',focusColor: Color(0xff26a69a)),
+    //                         validator: (String? value){
+    //                           if(value!.isEmpty){
+    //                             return "برجاء ادخال تاريخ الزراعة";
+    //                           }
+    //                         },
+    //                         onTap: () {
+    //                           showDatePicker(
+    //                               context: context,
+    //                               initialDate: plantingDate == null ? DateTime.now() : plantingDate,
+    //                               firstDate: DateTime.now().add(Duration(days: -200)),
+    //                               lastDate: DateTime.now()).then((value){
+    //                             setState(() {
+    //                               plantingDate = value;
+    //                               plantingDateController.text = formatter.format(value!);
+    //                               //mydate = formatter.format(value);
+    //                             });
+    //                           });
+    //                         },
+    //                         onSaved: (String? value){
+    //                           //farmname = value;
+    //                         },
+    //                       ),
+    //                     ],
+    //                   ),
+    //                 ),
+    //               ],
+    //             ),
+    //             Row(
+    //               crossAxisAlignment: CrossAxisAlignment.end,
+    //               children: [
+    //                 ElevatedButton(
+    //                   style: ElevatedButton.styleFrom(
+    //                     backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
+    //                     padding: EdgeInsets.all(0),
+    //                   ),
+    //                   child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+    //                   onPressed: () {
+    //                     showDatePicker(
+    //                       context: context,
+    //                       initialDate: lastIrrigationDate ?? DateTime.now(),
+    //                       firstDate: DateTime.now().subtract(Duration(days: 200)),
+    //                       lastDate: DateTime.now(),
+    //                     ).then((value) {
+    //                       if (value != null) {
+    //                         setState(() {
+    //                           lastIrrigationDate = value;
+    //                           lastIrrigationDateController.text = formatter.format(value);
+    //                         });
+    //                       }
+    //                     });
+    //                   },
+    //                 ),
+    //
+    //                 SizedBox(width: 10),
+    //                 Expanded(
+    //                   child: Column(
+    //                     children: [
+    //                       TextFormField(
+    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                         //initialValue: 'a7a ya gedy',
+    //                         controller: lastIrrigationDateController,
+    //                         cursorColor: Color(0xff26a69a),
+    //                         //enabled: false,
+    //                         readOnly: true,
+    //                         decoration: InputDecoration(labelText: 'تاريخ اخر رية',focusColor: Color(0xff26a69a)),
+    //                         validator: (String? value){
+    //                           if(value!.isEmpty){
+    //                             return "برجاء ادخال تاريخ اخر رية";
+    //                           }
+    //                         },
+    //                         onTap: () {
+    //                           showDatePicker(
+    //                               context: context,
+    //                               initialDate: lastIrrigationDate == null ? DateTime.now() : lastIrrigationDate,
+    //                               firstDate: DateTime.now().add(Duration(days: -200)),
+    //                               lastDate: DateTime.now()).then((value){
+    //                             setState(() {
+    //                               lastIrrigationDate = value;
+    //                               lastIrrigationDateController.text = formatter.format(value!);
+    //                               //mydate = formatter.format(value);
+    //                             });
+    //                           });
+    //                         },
+    //                         onSaved: (String? value){
+    //                           //farmname = value;
+    //                         },
+    //                       ),
+    //                     ],
+    //                   ),
+    //                 ),
+    //               ],
+    //             ),
+    //             DropdownButtonFormField<cropObject>(
+    //               validator: (cropObject? value){
+    //                 if(value == null){
+    //                   return "اختر نوع المحصول";
+    //                 }
+    //               },
+    //               onSaved: (cropObject? value){
+    //                 croptypeobject = value;
+    //               },
+    //               isExpanded: true,
+    //               value: croptypeobject,
+    //               icon: Icon(Icons.arrow_drop_down),
+    //               iconSize: 24,
+    //               elevation: 16,
+    //               style: TextStyle(color: Colors.black,fontSize: 18),
+    //               onChanged: (cropObject? newValue) {
+    //                 this.croptypeobject = newValue;
+    //                 if(croptypeobject!.name!.indexOf('رز') >= 0){
+    //                   rice = true;
+    //                 }else{
+    //                   rice = false;
+    //                   shara2y = null;
+    //                   mashtal = null;
+    //                 }
+    //                 setState(() {
+    //                 });
+    //               },
+    //               hint: Text('اختر نوع المحصول'),
+    //               items: allcroptypes
+    //                   .map<DropdownMenuItem<cropObject>>((cropObject value) {
+    //                 return DropdownMenuItem<cropObject>(
+    //                   value: value,
+    //                   child: Text(value.name!),
+    //                 );
+    //               }).toList(),
+    //             ),
+    //             DropdownButtonFormField<irrigationMethodObject>(
+    //               validator: (irrigationMethodObject? value){
+    //                 if(value == null){
+    //                   return "اختر نوع الري";
+    //                 }
+    //               },
+    //               onSaved: (irrigationMethodObject? value){
+    //                 irrigationMethod = value;
+    //               },
+    //               isExpanded: true,
+    //               value: irrigationMethod,
+    //               icon: Icon(Icons.arrow_drop_down),
+    //               iconSize: 24,
+    //               elevation: 16,
+    //               style: TextStyle(color: Colors.black,fontSize: 18),
+    //               onChanged: (irrigationMethodObject? newValue) {
+    //                 this.irrigationMethod = newValue;
+    //                 setState(() {
+    //                 });
+    //               },
+    //               hint: Text('اختر نوع الري'),
+    //               items: irrigationMethods
+    //                   .map<DropdownMenuItem<irrigationMethodObject>>((irrigationMethodObject value) {
+    //                 return DropdownMenuItem<irrigationMethodObject>(
+    //                   value: value,
+    //                   child: Text(value.name!),
+    //                 );
+    //               }).toList(),
+    //             ),
+    //             Row(
+    //               crossAxisAlignment: CrossAxisAlignment.end,
+    //               children: [
+    //                 Expanded(
+    //                   child: Column(
+    //                     children: [
+    //                       TextFormField(
+    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                         //initialValue: 'a7a ya gedy',
+    //                         cursorColor: Color(0xff26a69a),
+    //                         decoration: InputDecoration(labelText: 'المساحة المزروعة',focusColor: Color(0xff26a69a)),
+    //                         validator: (String? value){
+    //                           if(value!.isEmpty){
+    //                             return "برجاء ادخال المساحة";
+    //                           }
+    //                         },
+    //                         onSaved: (String? value){
+    //                           area = value;
+    //                         },
+    //                         inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+    //                         keyboardType: TextInputType.numberWithOptions(decimal: true),
+    //                       ),
+    //                     ],
+    //                   ),
+    //                 ),
+    //                 SizedBox(width: 10),
+    //                 Expanded(
+    //                   child: Column(
+    //                     children: [
+    //                       DropdownButtonFormField<MeasringObject>(
+    //                         validator: (MeasringObject? value){
+    //                           if(value == null){
+    //                             return "اختر الوحدة";
+    //                           }
+    //                         },
+    //                         onSaved: (MeasringObject? value){
+    //                           measuringunit = value;
+    //                         },
+    //                         isExpanded: true,
+    //                         value: measuringunit,
+    //                         icon: Icon(Icons.arrow_drop_down),
+    //                         iconSize: 24,
+    //                         elevation: 16,
+    //                         style: TextStyle(color: Colors.black,fontSize: 18),
+    //                         onChanged: (MeasringObject? newValue) {
+    //                           this.measuringunit = newValue;
+    //                           setState(() {
+    //                           });
+    //                         },
+    //                         hint: Text('اختر الوحدة'),
+    //                         items: measuringUnits
+    //                             .map<DropdownMenuItem<MeasringObject>>((MeasringObject value) {
+    //                           return DropdownMenuItem<MeasringObject>(
+    //                             value: value,
+    //                             child: Text(value.name!),
+    //                           );
+    //                         }).toList(),
+    //                       ),
+    //                     ],
+    //                   ),
+    //                 ),
+    //               ],
+    //             ),
+    //             TextFormField(
+    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //               //initialValue: 'a7a ya gedy',
+    //               cursorColor: Color(0xff26a69a),
+    //               decoration: InputDecoration(labelText: 'عدد ساعات رية الزراعه',focusColor: Color(0xff26a69a)),
+    //               onSaved: (String? value){
+    //                 initialIrrigationHours = value;
+    //               },
+    //               inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+    //               keyboardType: TextInputType.numberWithOptions(decimal: true),
+    //             ),
+    //             if(rice)
+    //             TextFormField(
+    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //               //initialValue: 'a7a ya gedy',
+    //               cursorColor: Color(0xff26a69a),
+    //               decoration: InputDecoration(labelText: 'عدد ساعات ري المشتل',focusColor: Color(0xff26a69a)),
+    //               onSaved: (String? value){
+    //                 mashtal = value;
+    //               },
+    //               inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+    //               keyboardType: TextInputType.numberWithOptions(decimal: true),
+    //             ),
+    //             if(rice)
+    //             TextFormField(
+    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //               //initialValue: 'a7a ya gedy',
+    //               cursorColor: Color(0xff26a69a),
+    //               decoration: InputDecoration(labelText: 'عدد ساعات طفي الشراقي',focusColor: Color(0xff26a69a)),
+    //               onSaved: (String? value){
+    //                 shara2y = value;
+    //               },
+    //               inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+    //               keyboardType: TextInputType.numberWithOptions(decimal: true),
+    //             ),
+    //           ],
+    //         ),
+    //       ),
+    //     ),
+    //   ),
+    //   actions: loading?[]:[
+    //     cancelButton,
+    //     submitButton
+    //   ],
+    // );
   }
 }
 
@@ -3133,7 +3463,8 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
       content: loading? Center(child: CircularProgressIndicator()) : Form(
         key: formkey,
         child: Container(
-          height: 350,
+          height: MediaQuery.of(context).size.height * 0.8,
+          width: MediaQuery.of(context).size.width * 0.9,
           child: Scrollbar(
             child: ListView(
               children: [
