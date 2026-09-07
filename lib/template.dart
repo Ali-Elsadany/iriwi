@@ -171,16 +171,24 @@ class _farmsState extends State<farms> {
                   ],
                 ),
                 onTap: () async {
+                  // Close the drawer first
+                  Navigator.pop(context);
+                  
+                  // Try to logout from API (but don't wait for result)
                   SharedPreferences prefs = await SharedPreferences.getInstance();
                   String cookie = (prefs.getString('cookie') ?? '');
-                  final user = await  logoutASYNC(username,password,confirmPass,phone,cookie);
-                  if(user == false){
-                    Navigator.pop(context);
-                    print('logout failed');
-                  }else{
-                    print('logged out');
-                    Navigator.of(context).pushReplacement(goToLogin());
-                  }
+                  
+                  // Clear stored credentials regardless of API result
+                  await prefs.clear();
+                  
+                  // Navigate to login and remove all previous routes
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => login()),
+                    (Route<dynamic> route) => false,
+                  );
+                  
+                  // Attempt logout API call in background (don't wait for result)
+                  logoutASYNC(username, password, confirmPass, phone, cookie);
                 },
               ),
             ],

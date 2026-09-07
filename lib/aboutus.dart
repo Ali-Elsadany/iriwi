@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import 'directory.dart';
+import 'widgets/side_menu.dart';
 
 
 Future<bool> logoutASYNC(String username, String password, String confirmPass, String phone,String cookie) async {
@@ -132,93 +133,7 @@ class _aboutUsState extends State<aboutUs> {
             ),
           ),
         ),
-        drawer: Drawer(
-          // Add a ListView to the drawer. This ensures the user can scroll
-          // through the options in the drawer if there isn't enough vertical
-          // space to fit everything.
-          child: ListView(
-            // Important: Remove any padding from the ListView.
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              DrawerHeader(
-                child: Image(
-                  image: AssetImage('assets/images/logo.png'),
-                  width: 150,
-                ),
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.home,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('مزرعتي'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToFarms());
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.info,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('اعرف عنا'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToAboutUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.solidQuestionCircle,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('المقترحات'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToContactUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.wpforms,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('معلومات ارشادية'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToExtraInfo());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.signOutAlt,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('تسجيل الخروج'),
-                  ],
-                ),
-                onTap: () async {
-                  SharedPreferences prefs = await SharedPreferences.getInstance();
-                  String cookie = (prefs.getString('cookie') ?? '');
-                  final user = await  logoutASYNC(username,password,confirmPass,phone,cookie);
-                  if(user == false){
-                    Navigator.pop(context);
-                    print('logout failed');
-                  }else{
-                    print('logged out');
-                    Navigator.of(context).pushReplacement(goToLogin());
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
+        drawer: SideMenu(currentRoute: '/about'),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
             Navigator.of(context).pushReplacement(goToFarms());

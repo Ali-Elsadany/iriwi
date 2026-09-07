@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -15,21 +14,44 @@ import 'package:intl/intl.dart';
 import 'package:irwi/login.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:webview_cookie_manager/webview_cookie_manager.dart';
+import 'package:webview_flutter/webview_flutter.dart' show WebViewCookieManager, WebViewCookie;
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'dart:math' as math;
 import 'directory.dart';
+import 'widgets/side_menu.dart';
 
 FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 FlutterLocalNotificationsPlugin();
 
-Future<bool> logoutASYNC(String username, String password, String confirmPass, String phone,String cookie) async {
-  var mydata = jsonEncode({
-  });
+// Debug configuration for API logging
+const bool API_DEBUG_MODE = true; // Set to false in production
 
+void apiLog(String message) {
+  if (API_DEBUG_MODE) {
+    print(message);
+  }
+}
+
+/*
+ * API IMPROVEMENTS MADE:
+ * 1. Added comprehensive input validation
+ * 2. Added detailed request/response logging
+ * 3. Added proper error handling with specific error messages
+ * 4. Added timeout handling (30 seconds)
+ * 5. Added status code handling (200, 302, 401, 400, 500)
+ * 6. Added cookie validation logging
+ * 7. Added debug mode toggle for production
+ * 8. Improved user feedback with specific error messages
+ * 9. Added null safety for optional parameters
+ * 10. Added proper exception handling for network errors
+ */
+
+Future<bool> logoutASYNC(String username, String password, String confirmPass,
+    String phone, String cookie) async {
+  var mydata = jsonEncode({});
 
   final http.Response response = await http.post(
     Uri.parse('https://irwicrop.com/Account/LogOff'), // Convert String to Uri
@@ -39,7 +61,6 @@ Future<bool> logoutASYNC(String username, String password, String confirmPass, S
     },
     body: mydata,
   );
-
 
   if (response.statusCode == 302) {
     //return Album.fromJson(json.decode(response.body));
@@ -55,19 +76,18 @@ Future<bool> logoutASYNC(String username, String password, String confirmPass, S
     //}
     print(response);
     return false;
-  } else {//302
+  } else {
+    //302
     print(response.body);
     return false;
     throw Exception('Failed to create album.');
   }
 }
 
-
 class farmcrop extends StatefulWidget {
   int farmid;
 
   farmcrop(this.farmid);
-
 
   /*login({Key key, this.title}) : super(key: key);
 
@@ -87,8 +107,10 @@ class WeatherBoxWebview extends StatefulWidget {
 class _WeatherBoxWebviewState extends State<WeatherBoxWebview>
     with AutomaticKeepAliveClientMixin<WeatherBoxWebview> {
   late final WebViewController _controller;
-  final cookieManager = WebviewCookieManager();
+  final cookieManager = WebViewCookieManager();
   bool isWebViewInitialized = false;
+  bool hasError = false;
+  String errorMessage = '';
 
   @override
   void initState() {
@@ -97,43 +119,322 @@ class _WeatherBoxWebviewState extends State<WeatherBoxWebview>
   }
 
   Future<void> _initializeWebView() async {
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (url) {
-          print('Page loaded: $url');
+    try {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(NavigationDelegate(
+          onPageStarted: (String url) {
+            print('=== WEATHERBOX PAGE STARTED ===');
+            print('URL: $url');
+            print('==============================');
+          },
+          onPageFinished: (url) {
+            print('=== WEATHERBOX PAGE FINISHED ===');
+            print('URL: $url');
+            print('===============================');
+            // Check if content is loaded properly
+            _checkContent();
+            // Log the full response content
+            _logResponseContent();
+          },
+          onWebResourceError: (WebResourceError error) {
+            print('=== WEATHERBOX ERROR ===');
+            print('Error code: ${error.errorCode}');
+            print('Error description: ${error.description}');
+            print('========================');
+            setState(() {
+              hasError = true;
+              errorMessage = 'خطأ في تحميل البيانات';
+            });
+          },
+        ));
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String cookie = prefs.getString('cookie') ?? '';
+
+      String myurl =
+          'https://irwicrop.com/Home/GetWeatherBoxHtml?farmId=${widget.farmid}';
+      
+      // Log the URL and farm ID for debugging
+      print('=== WEATHERBOX DEBUG INFO ===');
+      print('Farm ID: ${widget.farmid}');
+      print('Loading weatherbox URL: $myurl');
+      print('Cookie length: ${cookie.length}');
+      print(
+          'Cookie preview: ${cookie.isNotEmpty ? cookie.substring(0, math.min(50, cookie.length)) + '...' : 'EMPTY'}');
+      print('============================');
+
+      // Clean and validate the cookie
+      String cleanCookie = _cleanCookie(cookie);
+      print('=== COOKIE CLEANING ===');
+      print('Original cookie: $cookie');
+      print('Cleaned cookie: $cleanCookie');
+      print('======================');
+
+      // Set Cookie Correctly with cleaned cookie
+      if (cleanCookie.isNotEmpty) {
+        try {
+          await cookieManager.setCookie(
+              WebViewCookie(name: 'Cookie', value: cleanCookie, domain: 'irwicrop.com', path: '/'));
+          print('✅ Cookie set successfully via cookie manager');
+        } catch (e) {
+          print('⚠️ Cookie manager failed: $e');
+          print('🔄 Trying alternative cookie method...');
+          // Alternative: Set cookie via headers only
+          await _setCookieViaHeaders(cleanCookie);
+        }
+      } else {
+        print('⚠️ WARNING: Cleaned cookie is empty, proceeding without cookie');
+      }
+
+      // Add timeout to prevent infinite loading
+      await _controller.loadRequest(
+        Uri.parse(myurl), 
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Cookie': cookie,
         },
-      ));
+      ).timeout(
+        Duration(seconds: 15),
+        onTimeout: () {
+          print('=== WEATHERBOX TIMEOUT ===');
+          print('Request timed out after 15 seconds');
+          print('URL: $myurl');
+          print('=======================');
+          setState(() {
+            hasError = true;
+            errorMessage = 'انتهت مهلة الاتصال';
+          });
+          throw TimeoutException('WebView timeout');
+        },
+      );
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String cookie = prefs.getString('cookie') ?? '';
-
-    String myurl = 'https://irwicrop.com/Home/weatherbox/${widget.farmid}';
-
-    // Set Cookie Correctly
-    await cookieManager.setCookies([
-      Cookie('Cookie', cookie)..domain = 'irwicrop.com'
-    ]);
-
-    _controller.loadRequest(Uri.parse(myurl), headers: {
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie': cookie,
-    });
-
-    setState(() {
-      isWebViewInitialized = true;
-    });
+      setState(() {
+        isWebViewInitialized = true;
+      });
+    } catch (e) {
+      print('=== WEATHERBOX INITIALIZATION ERROR ===');
+      print('Error: $e');
+      print('Error type: ${e.runtimeType}');
+      print('===============================');
+      setState(() {
+        hasError = true;
+        errorMessage = 'خطأ في التحميل';
+      });
+    }
   }
 
+  /// Clean and validate the cookie string to fix format issues
+  String _cleanCookie(String cookie) {
+    try {
+      if (cookie.isEmpty) return '';
+      
+      print('=== COOKIE CLEANING DETAILED ===');
+      print('Original cookie: $cookie');
+      
+      // Extract only the ApplicationCookie part which seems to be the valid one
+      String cleaned = '';
+      
+      // Look for the ApplicationCookie part
+      RegExp appCookieRegex = RegExp(r'\.AspNet\.ApplicationCookie=[^;]+');
+      Match? appCookieMatch = appCookieRegex.firstMatch(cookie);
+      
+      if (appCookieMatch != null) {
+        cleaned = appCookieMatch.group(0)!;
+        print('Found ApplicationCookie: $cleaned');
+      } else {
+        // If no ApplicationCookie found, try to clean the whole cookie
+        cleaned = cookie;
+        
+        // Remove problematic parts
+        cleaned =
+            cleaned.replaceAll(RegExp(r'\.AspNet\.ExternalCookie=[^;]*;?'), '');
+        cleaned = cleaned.replaceAll(RegExp(r'expires=[^;]*GMT;?'), '');
+        cleaned = cleaned.replaceAll(RegExp(r'path=/;?'), '');
+        cleaned = cleaned.replaceAll(RegExp(r'secure;?'), '');
+        cleaned = cleaned.replaceAll(RegExp(r'HttpOnly;?'), '');
+        
+        // Clean up multiple commas and semicolons
+        cleaned = cleaned.replaceAll(RegExp(r'[,;]+'), ';');
+        cleaned = cleaned.replaceAll(RegExp(r'^[,;]+|[,;]+$'), '');
+        
+        print('Cleaned cookie (fallback): $cleaned');
+      }
+      
+      // Final validation
+      if (cleaned.trim().isEmpty) {
+        print('Cookie is empty after cleaning');
+        return '';
+      }
+      
+      print('Final cleaned cookie: $cleaned');
+      print('===============================');
+      return cleaned.trim();
+    } catch (e) {
+      print('Cookie cleaning error: $e');
+      return '';
+    }
+  }
+
+  /// Check if the WebView content is valid
+  Future<void> _checkContent() async {
+    try {
+      print('=== CHECKING CONTENT ===');
+      // Wait a bit for content to render
+      await Future.delayed(Duration(milliseconds: 1000));
+      
+      // Check if page has content
+      String? content = await _controller
+          .runJavaScriptReturningResult('document.body.innerText') as String?;
+      
+      print('Content length: ${content?.length ?? 0}');
+      print(
+          'Content preview: ${content != null && content.isNotEmpty ? content.substring(0, math.min(100, content.length)) + '...' : 'EMPTY'}');
+      
+      if (content == null || content.trim().isEmpty) {
+        print('Content is empty - setting error state');
+        setState(() {
+          hasError = true;
+          errorMessage = 'لا توجد بيانات متاحة';
+        });
+      } else {
+        print('Content is valid');
+      }
+      print('=======================');
+    } catch (e) {
+      print('=== CONTENT CHECK ERROR ===');
+      print('Error: $e');
+      print('==========================');
+      // Don't set error here, let the WebView show what it can
+    }
+  }
+
+  /// Alternative method to set cookie via headers only
+  Future<void> _setCookieViaHeaders(String cookie) async {
+    try {
+      print('=== SETTING COOKIE VIA HEADERS ===');
+      print('Cookie to set: $cookie');
+      
+      // Set cookie via JavaScript after page loads
+      await _controller.runJavaScript('''
+        document.cookie = "$cookie; domain=.irwicrop.com; path=/";
+      ''');
+      
+      print('✅ Cookie set via JavaScript');
+      print('==============================');
+    } catch (e) {
+      print('❌ Failed to set cookie via JavaScript: $e');
+    }
+  }
+
+  /// Log the full response content from the WebView
+  Future<void> _logResponseContent() async {
+    try {
+      print('=== FULL RESPONSE CONTENT ===');
+      
+      // Get the full HTML content
+      String? htmlContent = await _controller.runJavaScriptReturningResult(
+          'document.documentElement.outerHTML') as String?;
+      
+      print('HTML Content Length: ${htmlContent?.length ?? 0}');
+      if (htmlContent != null && htmlContent.isNotEmpty) {
+        print(
+            'HTML Content Preview: ${htmlContent.substring(0, math.min(500, htmlContent.length))}');
+        if (htmlContent.length > 500) {
+          print('... (truncated)');
+        }
+      } else {
+        print('HTML Content: EMPTY');
+      }
+      
+      // Get the page title
+      String? title = await _controller
+          .runJavaScriptReturningResult('document.title') as String?;
+      print('Page Title: ${title ?? 'NO TITLE'}');
+      
+      // Get the current URL
+      String? currentUrl = await _controller
+          .runJavaScriptReturningResult('window.location.href') as String?;
+      print('Current URL: ${currentUrl ?? 'NO URL'}');
+      
+      // Check for common error indicators in the content
+      if (htmlContent != null) {
+        if (htmlContent.contains('error') || htmlContent.contains('Error')) {
+          print('⚠️ ERROR INDICATOR FOUND in content');
+        }
+        if (htmlContent.contains('404') || htmlContent.contains('Not Found')) {
+          print('⚠️ 404 NOT FOUND INDICATOR FOUND');
+        }
+        if (htmlContent.contains('500') ||
+            htmlContent.contains('Internal Server Error')) {
+          print('⚠️ 500 SERVER ERROR INDICATOR FOUND');
+        }
+        if (htmlContent.contains('login') || htmlContent.contains('Login')) {
+          print('⚠️ LOGIN REQUIRED INDICATOR FOUND');
+        }
+      }
+      
+      print('=============================');
+    } catch (e) {
+      print('=== RESPONSE LOGGING ERROR ===');
+      print('Error: $e');
+      print('=============================');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     return Container(
       height: 160,
-      child: isWebViewInitialized
-          ? WebViewWidget(controller: _controller)
-          : Center(child: CircularProgressIndicator()),
+      child: hasError
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red, size: 32),
+                  SizedBox(height: 8),
+                  Text(
+                    errorMessage,
+                    style: TextStyle(color: Colors.red, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        hasError = false;
+                        errorMessage = '';
+                      });
+                      _initializeWebView();
+                    },
+                    child: Text('إعادة المحاولة'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xff08aeea),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : isWebViewInitialized
+              ? WebViewWidget(controller: _controller)
+              : Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xff08aeea)),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'جاري التحميل...',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
     );
   }
 
@@ -141,8 +442,8 @@ class _WeatherBoxWebviewState extends State<WeatherBoxWebview>
   bool get wantKeepAlive => true;
 }
 
-
-class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin {
+class _farmcropState extends State<farmcrop>
+    with SingleTickerProviderStateMixin {
   bool checkedValue = false;
   bool isLoading = true;
   String username = '';
@@ -171,20 +472,18 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
   late PracticalDataSource practicalDataSource;
   late IdealDataSource idealDataSource;
   String PREVIOUSwhichGrid = 'بيانات يوميه';
-  late  PREVIOUSFarmcropFilterObject PREVIOUSselectedfarmCropFilter;
+  late PREVIOUSFarmcropFilterObject PREVIOUSselectedfarmCropFilter;
   late PREVIOUSDailyDataSource PREVIOUSdailyDataSource;
   late PREVIOUSPracticalDataSource PREVIOUSpracticalDataSource;
   late PREVIOUSIdealDataSource PREVIOUSidealDataSource;
   late TabController tb;
-  final cookieManager = WebviewCookieManager();
+  final cookieManager = WebViewCookieManager();
   int NotificationCounter = 0;
   int farmid;
 
   _farmcropState(this.farmid);
   @override
-  void initState()
-  {
-
+  void initState() {
     tb = TabController(initialIndex: 0, length: 3, vsync: this);
     super.initState();
     // dailyDataSource = DailyDataSource(); // Replace with actual initialization
@@ -197,11 +496,12 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
     DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
-        requestSoundPermission: false,
-        onDidReceiveLocalNotification: onDidReceiveLocalNotification);
+        requestSoundPermission: false);
 
-    final InitializationSettings initializationSettings = InitializationSettings(
-        android: initializationSettingsAndroid, iOS: initializationSettingsIOS);
+    final InitializationSettings initializationSettings =
+        InitializationSettings(
+            android: initializationSettingsAndroid,
+            iOS: initializationSettingsIOS);
 
     flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
@@ -216,8 +516,7 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
   }
 
   void onDidReceiveLocalNotification(
-      int id, String? title, String? body, String? payload)
-  {
+      int id, String? title, String? body, String? payload) {
     // Check if context is available (for safety)
     if (context == null) return;
 
@@ -250,13 +549,13 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
     );
   }
 
-
-
-  Future scheduleNotificationMan(DateTime notifdate, int id, String crop) async {
+  Future scheduleNotificationMan(
+      DateTime notifdate, int id, String crop) async {
     var androidDetails = AndroidNotificationDetails(
       'irwi' + id.toString(),
       'irwi',
-      channelDescription: 'irwi', // 'description' renamed to 'channelDescription'
+      channelDescription:
+          'irwi', // 'description' renamed to 'channelDescription'
     );
 
     var iosDetails = DarwinNotificationDetails();
@@ -279,20 +578,19 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
       'اليوم ميعاد ري محصول ' + crop,
       notTime,
       generalConqure,
-      uiLocalNotificationDateInterpretation:
-      UILocalNotificationDateInterpretation.absoluteTime,
-      androidAllowWhileIdle: true,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
 
-    print('Notification Scheduled id: ' + id.toString() + ' , Time: ' + notTime.toString());
+    print('Notification Scheduled id: ' +
+        id.toString() +
+        ' , Time: ' +
+        notTime.toString());
   }
-
-
 
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: ()async{
+      onWillPop: () async {
         Navigator.of(context).pushReplacement(goToFarms());
         return false;
       },
@@ -306,7 +604,7 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
               Image(
                   image: AssetImage('assets/images/logo.png'),
                   fit: BoxFit.contain,
-                height: AppBar().preferredSize.height -5,
+                height: AppBar().preferredSize.height - 5,
               )
             ],
           ),
@@ -315,98 +613,10 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                 gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: <Color>[Color(0xff08aeea), Color(0xff2af598)])
-            ),
+                    colors: <Color>[Color(0xff08aeea), Color(0xff2af598)])),
           ),
         ),
-        drawer: Drawer(
-          // Add a ListView to the drawer. This ensures the user can scroll
-          // through the options in the drawer if there isn't enough vertical
-          // space to fit everything.
-          child: ListView(
-            // Important: Remove any padding from the ListView.
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              DrawerHeader(
-                child: Image(
-                  image: AssetImage('assets/images/logo.png'),
-                  width: 150,
-                ),
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.home,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('مزرعتي'),
-                  ],
-                ),
-                onTap: () {
-                  //Navigator.pop(context);
-                  Navigator.of(context).pushReplacement(goToFarms());
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.info,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('اعرف عنا'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToAboutUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.solidQuestionCircle,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('المقترحات'),
-                  ],
-                ),
-                onTap: () {
-                Navigator.of(context).pushReplacement(goToContactUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.wpforms,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('معلومات ارشادية'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToExtraInfo());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.signOutAlt,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('تسجيل الخروج'),
-                  ],
-                ),
-                onTap: () async {
-                  SharedPreferences prefs = await SharedPreferences.getInstance();
-                  String cookie = (prefs.getString('cookie') ?? '');
-                  final user = await  logoutASYNC(username,password,confirmPass,phone,cookie);
-                  if(user == false){
-                    Navigator.pop(context);
-                    print('logout failed');
-                  }else{
-                    print('logged out');
-                    Navigator.of(context).pushReplacement(goToLogin());
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
+        drawer: SideMenu(currentRoute: '/farmcrop'),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
             //Navigator.pop(context);
@@ -416,54 +626,95 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
           backgroundColor: Color(0xff2af598),
         ),
         body: FutureBuilder<List<String>>(
-          future: fetchAll(http.Client(), farmid, http.Client(), http.Client(), http.Client()),
+          future: fetchAll(http.Client(), farmid, http.Client(), http.Client(),
+              http.Client()),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               print(snapshot.error.toString());
             }
 
-            if (isLoading && snapshot.hasData && snapshot.data != null && snapshot.data!.length >= 12) {
+            if (snapshot.hasError) {
+              print('Error in FutureBuilder: ${snapshot.error}');
+              return Center(
+                child: Text(
+                    'حدث خطأ في تحميل البيانات. الرجاء المحاولة مرة أخرى.'),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data == null) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.data!.length < 12) {
+              return Center(
+                child: Text('البيانات غير مكتملة. الرجاء المحاولة مرة أخرى.'),
+              );
+            }
+
+            if (isLoading) {
+              try {
               isLoading = false;
 
+                if (snapshot.data != null && snapshot.data!.length >= 6) {
               allfarmcrops = parseFarmcrops(snapshot.data![0]);
               cropTypes = parseCrops(snapshot.data![1]);
               measuringUnits = parseMeasring(snapshot.data![2]);
               irrigationMethods = parseIrrigationMethod(snapshot.data![3]);
               DailyRecords = parseDailyRecords(snapshot.data![4]);
               PracticalGrid = parsePracticalGrid(snapshot.data![5]);
+                } else {
+                  throw Exception('Data not fully loaded');
+                }
+              } catch (e) {
+                print('Error parsing data: $e');
+                return Center(
+                  child: Text(
+                      'حدث خطأ في معالجة البيانات. الرجاء المحاولة مرة أخرى.'),
+                );
+              }
               IdealGrid = parseIdealGrid(snapshot.data![6]);
-              PREVIOUSDailyRecords = parsePREVIOUSDailyRecords(snapshot.data![7]);
-              PREVIOUSPracticalGrid = parsePREVIOUSPracticalGrid(snapshot.data![8]);
+              PREVIOUSDailyRecords =
+                  parsePREVIOUSDailyRecords(snapshot.data![7]);
+              PREVIOUSPracticalGrid =
+                  parsePREVIOUSPracticalGrid(snapshot.data![8]);
               PREVIOUSIdealGrid = parsePREVIOUSIdealGrid(snapshot.data![9]);
               FarmcropFilter = parseFarmcropFilter(snapshot.data![10]);
-              PREVIOUSFarmcropFilter = parsePREVIOUSFarmcropFilter(snapshot.data![11]);
+              PREVIOUSFarmcropFilter =
+                  parsePREVIOUSFarmcropFilter(snapshot.data![11]);
 
-              selectedfarmCropFilter = FarmcropFilter != null && FarmcropFilter!.isNotEmpty
+              selectedfarmCropFilter =
+                  FarmcropFilter != null && FarmcropFilter!.isNotEmpty
                   ? FarmcropFilter![0]
                   : FarmcropFilterObject();
 
-              dailyDataSource = DailyDataSource(DailyRecords!, selectedfarmCropFilter?.farmcropId ?? '0');
-              practicalDataSource = PracticalDataSource(PracticalGrid!, selectedfarmCropFilter?.farmcropId ?? '0');
-              idealDataSource = IdealDataSource(IdealGrid!, selectedfarmCropFilter?.farmcropId ?? '0');
+              dailyDataSource = DailyDataSource(
+                  DailyRecords ?? [], selectedfarmCropFilter.farmcropId ?? '0');
+              practicalDataSource = PracticalDataSource(PracticalGrid ?? [],
+                  selectedfarmCropFilter.farmcropId ?? '0');
+              idealDataSource = IdealDataSource(
+                  IdealGrid ?? [], selectedfarmCropFilter.farmcropId ?? '0');
 
-              PREVIOUSselectedfarmCropFilter =
-              PREVIOUSFarmcropFilter != null && PREVIOUSFarmcropFilter!.isNotEmpty
+              PREVIOUSselectedfarmCropFilter = PREVIOUSFarmcropFilter != null &&
+                      PREVIOUSFarmcropFilter!.isNotEmpty
                   ? PREVIOUSFarmcropFilter![0]
                   : PREVIOUSFarmcropFilterObject();
 
-              PREVIOUSdailyDataSource =
-                  PREVIOUSDailyDataSource(PREVIOUSDailyRecords!, PREVIOUSselectedfarmCropFilter?.farmcropId ?? '0');
-              PREVIOUSpracticalDataSource =
-                  PREVIOUSPracticalDataSource(PREVIOUSPracticalGrid!, PREVIOUSselectedfarmCropFilter?.farmcropId ?? '0');
-              PREVIOUSidealDataSource =
-                  PREVIOUSIdealDataSource(PREVIOUSIdealGrid!, PREVIOUSselectedfarmCropFilter?.farmcropId ?? '0');
+              PREVIOUSdailyDataSource = PREVIOUSDailyDataSource(
+                  PREVIOUSDailyRecords ?? [],
+                  PREVIOUSselectedfarmCropFilter.farmcropId ?? '0');
+              PREVIOUSpracticalDataSource = PREVIOUSPracticalDataSource(
+                  PREVIOUSPracticalGrid ?? [],
+                  PREVIOUSselectedfarmCropFilter.farmcropId ?? '0');
+              PREVIOUSidealDataSource = PREVIOUSIdealDataSource(
+                  PREVIOUSIdealGrid ?? [],
+                  PREVIOUSselectedfarmCropFilter.farmcropId ?? '0');
 
               NotificationCounter = 0;
               for (farmcropObject myfarmcrop in allfarmcrops ?? []) {
                 if (myfarmcrop.nextirrigationdate != null &&
                     myfarmcrop.nextirrigationdate!.isAfter(DateTime.now())) {
-                  scheduleNotificationMan(
-                      myfarmcrop.nextirrigationdate!, ++NotificationCounter, myfarmcrop.cropname ?? '');
+                  scheduleNotificationMan(myfarmcrop.nextirrigationdate!,
+                      ++NotificationCounter, myfarmcrop.cropname ?? '');
                 }
               }
             }
@@ -480,6 +731,7 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                     backgroundColor: Colors.white,
                     flexibleSpace: FlexibleSpaceBar(
                       background:
+
                       /// _buildCarousel() in your case....
                       Container(
                           height: 200,
@@ -487,15 +739,25 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                margin: EdgeInsets.symmetric(horizontal: 25,vertical: 15),
+                                          margin: EdgeInsets.symmetric(
+                                              horizontal: 25, vertical: 15),
                                 alignment: Alignment.center,
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.local_florist,color: Colors.blue[900],size: 35,),
+                                              Icon(
+                                                Icons.local_florist,
+                                                color: Colors.blue[900],
+                                                size: 35,
+                                              ),
                                     Text(
                                       'المزرعة',
-                                      style: TextStyle(color: Colors.blue[900],fontSize: 30,fontWeight: FontWeight.bold),
+                                                style: TextStyle(
+                                                    color: Colors.blue[900],
+                                                    fontSize: 30,
+                                                    fontWeight:
+                                                        FontWeight.bold),
                                     ),
                                   ],
                                 ),
@@ -503,35 +765,51 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                               Container(
                                   width: 300,
                                   height: 100,
-                                margin: EdgeInsets.symmetric(horizontal: 25,vertical: 15),
+                                            margin: EdgeInsets.symmetric(
+                                                horizontal: 25, vertical: 15),
                                 alignment: Alignment.bottomRight,
                                 child: ElevatedButton(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white, // Background color
-                                    padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+                                                backgroundColor: Colors
+                                                    .white, // Background color
+                                                padding: EdgeInsets.fromLTRB(
+                                                    10, 10, 10, 10),
                                   ),
                                   onPressed: () {
-                                    showAddFarmCropDialog(context, cropTypes, irrigationMethods, measuringUnits, farmid);
+                                                showAddFarmCropDialog(
+                                                    context,
+                                                    cropTypes,
+                                                    irrigationMethods,
+                                                    measuringUnits,
+                                                    farmid);
                                   },
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      Icon(Icons.add_circle, color: Color(0xff039be5), size: 35),
-                                      SizedBox(width: 8), // Add space between icon and text
+                                                  Icon(Icons.add_circle,
+                                                      color: Color(0xff039be5),
+                                                      size: 35),
+                                                  SizedBox(
+                                                      width:
+                                                          8), // Add space between icon and text
                                       Text(
                                         'أضف محصول',
-                                        style: TextStyle(color: Color(0xff039be5), fontSize: 20, fontWeight: FontWeight.w100),
+                                                    style: TextStyle(
+                                                        color:
+                                                            Color(0xff039be5),
+                                                        fontSize: 20,
+                                                        fontWeight:
+                                                            FontWeight.w100),
                                       ),
                                     ],
                                   ),
-                                )
-
-                              ),
+                                            )),
                             ],
-                          )
+                                    )),
                       ),
-                    ),
-                    expandedHeight: 250.0, /// your Carousel + Tabbar height(50)
+                          expandedHeight: 250.0,
+
+                          /// your Carousel + Tabbar height(50)
                     floating: true,
                     bottom: TabBar(
                       controller: tb,
@@ -539,7 +817,11 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                       Tab(text: "المراقبة"),
                       Tab(text: "الموسم الحالي"),
                       Tab(text: "المواسم السابقة"),
-                    ],labelColor: Color(0xff1a237e),indicatorColor: Colors.blue,unselectedLabelColor: Colors.grey,),
+                            ],
+                            labelColor: Color(0xff1a237e),
+                            indicatorColor: Colors.blue,
+                            unselectedLabelColor: Colors.grey,
+                          ),
                   ),
                 ];
               },
@@ -549,228 +831,399 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                 children: <Widget>[
                   SingleChildScrollView(
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
+                            constraints: BoxConstraints(
+                                minHeight: MediaQuery.of(context).size.height),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           WeatherBoxWebview(farmid),
                           Column(
                             children: [
-                              for ( farmcropObject myfarmcrop in allfarmcrops! )
+                                    for (farmcropObject myfarmcrop
+                                        in allfarmcrops!)
                                 Container(
                                   decoration: new BoxDecoration(
                                     //borderRadius: new BorderRadius.circular(16.0),
                                     color: Colors.white,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.grey.withOpacity(0.5),
+                                              color:
+                                                  Colors.grey.withOpacity(0.5),
                                         spreadRadius: 5,
                                         blurRadius: 7,
-                                        offset: Offset(0, 3), // changes position of shadow
+                                              offset: Offset(0,
+                                                  3), // changes position of shadow
                                       ),
                                     ],
                                   ),
                                   //padding: EdgeInsets.all(50),
-                                  margin: EdgeInsets.symmetric(horizontal: 25,vertical: 15),
+                                        margin: EdgeInsets.symmetric(
+                                            horizontal: 25, vertical: 15),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
                                     children: <Widget>[
                                       Stack(
                                         children: <Widget>[
                                           Column(
                                             children: [
                                               GestureDetector(
-                                                onTap: (){
+                                                onTap: () {
                                                   print("Image clicked");
                                                   //Navigator.of(context).pushReplacement(goToFarmCrops(myfarmcrop.farmcropId));
                                                 },
-                                                child: Image(
-                                                  image: AssetImage('assets/images/crops/'+myfarmcrop.cropimg!.trim()),
-                                                ),
+                                                child: (myfarmcrop.cropimg != null && myfarmcrop.cropimg!.isNotEmpty)
+                                                    ? Image(
+                                                        image: AssetImage(
+                                                          'assets/images/crops/' + myfarmcrop.cropimg!.trim(),
+                                                        ),
+                                                        errorBuilder: (context, error, stackTrace) {
+                                                          return Icon(
+                                                            Icons.grass,
+                                                            size: 48,
+                                                            color: Color(0xff26a69a),
+                                                          );
+                                                        },
+                                                      )
+                                                    : Icon(
+                                                        Icons.grass,
+                                                        size: 48,
+                                                        color: Color(0xff26a69a),
+                                                      ),
                                               ),
-                                              Container(height: 25, color: Colors.transparent),
+                                              Container(
+                                                height: 25,
+                                                color: Colors.transparent,
+                                              ),
                                             ],
                                           ),
                                           Positioned(
                                             left: 5,
                                             bottom: 0,
                                             child: FloatingActionButton(
-                                              heroTag: 'frm'+myfarmcrop.farmcropId.toString(),
-                                              child: Icon(Icons.edit),
-                                              onPressed: () {
-                                                print('FAB tapped!');
-                                                showEditFarmCropDialog(context,cropTypes, irrigationMethods, measuringUnits, farmid,myfarmcrop);
-                                                //Navigator.of(context).pushReplacement(goToEditFarms(myfarm.farmId));
-                                              },
-                                              backgroundColor: Color(0xff2af598),
-                                            ),
-                                          ),
+                                                    heroTag: 'frm' + (myfarmcrop.farmcropId ?? 0).toString(),
+                                                    backgroundColor: Color(0xff2af598),
+                                                    child: const Icon(Icons.edit),
+                                                    onPressed: () async {
+                                                      if (irrigationMethods != null && measuringUnits != null) {
+                                                        await showEditFarmCropDialog(
+                                                          BASEcontext: context,
+                                                          irrigationMethods: irrigationMethods!,
+                                                          measures: measuringUnits!,
+                                                          farmid: widget.farmid,
+                                                          myfarmcrop: myfarmcrop,
+                                                        );
+                                                      } else {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(
+                                                            content: Text('جاري تحميل البيانات...'),
+                                                          ),
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
+                                                ),
                                           Positioned(
                                             right: 10,
                                             bottom: 25,
-                                            child: Text(myfarmcrop.cropname!,style: TextStyle(fontSize: 30,color: Colors.white,fontWeight: FontWeight.bold,
+                                                  child: Text(
+                                                    myfarmcrop.cropname ?? '',
+                                                    style: TextStyle(
+                                                        fontSize: 30,
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.bold,
                                                 shadows: [
-                                                  Shadow( // bottomLeft
-                                                      offset: Offset(-1.5, -1.5),
-                                                      color: Colors.black
+                                                          Shadow(
+                                                              // bottomLeft
+                                                              offset: Offset(
+                                                                  -1.5, -1.5),
+                                                              color:
+                                                                  Colors.black),
+                                                          Shadow(
+                                                              // bottomRight
+                                                              offset: Offset(
+                                                                  1.5, -1.5),
+                                                              color:
+                                                                  Colors.black),
+                                                          Shadow(
+                                                              // topRight
+                                                              offset: Offset(
+                                                                  1.5, 1.5),
+                                                              color:
+                                                                  Colors.black),
+                                                          Shadow(
+                                                              // topLeft
+                                                              offset: Offset(
+                                                                  -1.5, 1.5),
+                                                              color:
+                                                                  Colors.black),
+                                                        ]),
                                                   ),
-                                                  Shadow( // bottomRight
-                                                      offset: Offset(1.5, -1.5),
-                                                      color: Colors.black
-                                                  ),
-                                                  Shadow( // topRight
-                                                      offset: Offset(1.5, 1.5),
-                                                      color: Colors.black
-                                                  ),
-                                                  Shadow( // topLeft
-                                                      offset: Offset(-1.5, 1.5),
-                                                      color: Colors.black
-                                                  ),
-                                                ]),),
-                                          ),
-                                        ], clipBehavior: Clip.none,
+                                                ),
+                                              ],
+                                              clipBehavior: Clip.none,
                                       ),
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
                                         children: [
                                           ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Color(0xff2196f3), // ✅ Equivalent to `color` in RaisedButton
-                                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                            ),
-                                            onPressed: () { showWaterNeedsDialog(context, myfarmcrop, farmid); },
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor: Color(
+                                                        0xff2196f3), // ✅ Equivalent to `color` in RaisedButton
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 10),
+                                                  ),
+                                                  onPressed: () {
+                                                    showWaterNeedsDialog(
+                                                        context,
+                                                        myfarmcrop,
+                                                        farmid);
+                                                  },
                                             child: Row(
                                               children: [
-                                                Icon(Icons.spa, color: Colors.white, size: 35),
-                                                Text("الاحتياجات المائية المتوقعة للري", style: TextStyle(color: Colors.white)),
-                                              ],
-                                              mainAxisSize: MainAxisSize.min,
-                                            ),
-                                          )
-
+                                                      Icon(Icons.spa,
+                                                          color: Colors.white,
+                                                          size: 35),
+                                                      Text(
+                                                          "الاحتياجات المائية المتوقعة للري",
+                                                          style: TextStyle(
+                                                              color: Colors
+                                                                  .white)),
+                                                    ],
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                  ),
+                                                )
                                         ],
                                       ),
                                       GestureDetector(
-                                        onTap: (){
+                                              onTap: () {
                                           print("Container clicked");
                                         },
                                         child: Container(
-                                          margin: EdgeInsets.fromLTRB(10, 0, 10, 0),
+                                                margin: EdgeInsets.fromLTRB(
+                                                    10, 0, 10, 0),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
                                             children: [
-                                              Text('البيانات المتوقعة',style: TextStyle(fontSize: 22,fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
+                                                    Text(
+                                                      'البيانات المتوقعة',
+                                                      style: TextStyle(
+                                                          fontSize: 22,
+                                                          fontWeight:
+                                                              FontWeight.bold),
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                    ),
                                               Row(
                                                 children: [
-                                                  Icon(Icons.timelapse,color: Colors.black,size: 22,),
+                                                        Icon(
+                                                          Icons.timelapse,
+                                                          color: Colors.black,
+                                                          size: 22,
+                                                        ),
                                                   SizedBox(width: 10),
-                                                  Text('الرية القادمة:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                                                        Text(
+                                                          'الرية القادمة:',
+                                                          style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                        ),
                                                   SizedBox(width: 5),
-                                                  Text(formatter.format(myfarmcrop.nextirrigationdate!),style: TextStyle(fontSize: 18,),),
-                                                ],mainAxisSize: MainAxisSize.min,
+                                                        Text(
+                                                          formatter.format(
+                                                              myfarmcrop
+                                                                  .nextirrigationdate!),
+                                                          style: TextStyle(
+                                                            fontSize: 18,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                               ),
                                               Row(
                                                 children: [
-                                                  Icon(Icons.hourglass_empty,color: Colors.black,size: 22,),
+                                                        Icon(
+                                                          Icons.hourglass_empty,
+                                                          color: Colors.black,
+                                                          size: 22,
+                                                        ),
                                                   SizedBox(width: 10),
-                                                  Text('تاريخ ايقاف الري:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                                                        Text(
+                                                          'تاريخ ايقاف الري:',
+                                                          style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                        ),
                                                   SizedBox(width: 5),
-                                                  Text(formatter.format(myfarmcrop.stopirrigationdate!),style: TextStyle(fontSize: 18,),),
-                                                ],mainAxisSize: MainAxisSize.min,
+                                                        Text(
+                                                          formatter.format(
+                                                              myfarmcrop
+                                                                  .stopirrigationdate!),
+                                                          style: TextStyle(
+                                                            fontSize: 18,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                               ),
                                               Row(
                                                 children: [
-                                                  Icon(Icons.local_florist,color: Colors.black,size: 22,),
+                                                        Icon(
+                                                          Icons.local_florist,
+                                                          color: Colors.black,
+                                                          size: 22,
+                                                        ),
                                                   SizedBox(width: 10),
-                                                  Text('مرحلة النمو:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                                                        Text(
+                                                          'مرحلة النمو:',
+                                                          style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                        ),
                                                   SizedBox(width: 5),
-                                                  Text(myfarmcrop.stage!,style: TextStyle(fontSize: 18,),),
-                                                ],mainAxisSize: MainAxisSize.min,
+                                                        Text(
+                                                          myfarmcrop.stage!,
+                                                          style: TextStyle(
+                                                            fontSize: 18,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                               ),
                                               Row(
                                                 children: [
-                                                  Icon(Icons.hourglass_empty,color: Colors.black,size: 22,),
+                                                        Icon(
+                                                          Icons.hourglass_empty,
+                                                          color: Colors.black,
+                                                          size: 22,
+                                                        ),
                                                   SizedBox(width: 10),
-                                                  Text('تاريخ الحصاد:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                                                        Text(
+                                                          'تاريخ الحصاد:',
+                                                          style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                        ),
                                                   SizedBox(width: 5),
-                                                  Text(formatter.format(myfarmcrop.harvestdate!),style: TextStyle(fontSize: 18,),),
-                                                ],mainAxisSize: MainAxisSize.min,
+                                                        Text(
+                                                          formatter.format(
+                                                              myfarmcrop
+                                                                  .harvestdate!),
+                                                          style: TextStyle(
+                                                            fontSize: 18,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                               ),
                                               Row(
                                                 children: [
-                                                  Icon(Icons.local_florist,color: Colors.black,size: 22,),
+                                                        Icon(
+                                                          Icons.local_florist,
+                                                          color: Colors.black,
+                                                          size: 22,
+                                                        ),
                                                   SizedBox(width: 10),
-                                                  Text('حجم الانتاج المتوقع:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                                                        Text(
+                                                          'حجم الانتاج المتوقع:',
+                                                          style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                        ),
                                                   SizedBox(width: 5),
-                                                  Text(myfarmcrop.LASTNPP == 'null' ? '0':myfarmcrop.LASTNPP! + ' ' + myfarmcrop.measuringunitname! + '/ك',style: TextStyle(fontSize: 18,),),
-                                                ],mainAxisSize: MainAxisSize.min,
-                                              ),
-                                            ],
+                                                        Text(
+                                                          myfarmcrop.LASTNPP ==
+                                                                      null ||
+                                                                  myfarmcrop
+                                                                          .LASTNPP ==
+                                                                      'null'
+                                                              ? '0'
+                                                              : '${myfarmcrop.LASTNPP} ${myfarmcrop.measuringunitname ?? ''}/ك',
+                                                          style: TextStyle(
+                                                            fontSize: 18,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                    ),
+                                                  ],
                                           ),
                                         ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          SizedBox(width: 30),
-                                          Expanded(
-                                            child:
-                                            ElevatedButton(
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.teal,
-                                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                              ),
-                                              onPressed: () { showMoreInfoDialog(context, myfarmcrop); },
-                                              child: Text(
-                                                "المزيد",
-                                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
-                                              ),
-                                            )
-
-                                          ),
-                                          SizedBox(width: 30),
-                                        ],
                                       ),
                                     ],
                                   ),
                                 )
                             ],
                           ),
-                          Container(//FOOTER
+                                Container(
+                                  //FOOTER
                             padding: EdgeInsets.all(5),
                             decoration: new BoxDecoration(
                               gradient: LinearGradient(
-                                  colors: [Color(0xff08aeea), Color(0xff2af598)],
+                                        colors: [
+                                          Color(0xff08aeea),
+                                          Color(0xff2af598)
+                                        ],
                                   begin: const FractionalOffset(0.0, 0.0),
                                   end: const FractionalOffset(0.7, 0.0),
                                   stops: [0.0, 1.0],
-                                  tileMode: TileMode.clamp
-                              ),
+                                        tileMode: TileMode.clamp),
                             ),
                             child: Column(
                               children: [
                                 Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                             children: <Widget>[
                               Flexible(
-                                  child: Image(image: AssetImage('assets/images/msa.png'),
-                                    fit: BoxFit.contain,)
-                              ),
+                                              child: Image(
+                                            image: AssetImage(
+                                                'assets/images/msa.png'),
+                                            fit: BoxFit.contain,
+                                          )),
                               SizedBox(width: 20),
                               Flexible(
-                                  child: Image(image: AssetImage('assets/images/iwmi.png'),
-                                    fit: BoxFit.contain,)
-                              ),
+                                              child: Image(
+                                            image: AssetImage(
+                                                'assets/images/iwmi.png'),
+                                            fit: BoxFit.contain,
+                                          )),
                               SizedBox(width: 20),
                               Flexible(
-                                  child: Image(image: AssetImage('assets/images/sweri.png'),
-                                    fit: BoxFit.contain,)
-                              )
+                                              child: Image(
+                                            image: AssetImage(
+                                                'assets/images/sweri.png'),
+                                            fit: BoxFit.contain,
+                                          ))
                             ],
                           ),
                                 Image(
-                                    image: AssetImage('assets/images/WAPOR.jpg')
-                                )
+                                          image: AssetImage(
+                                              'assets/images/WAPOR.jpg'))
                               ],
                             ),
                           ),
@@ -783,25 +1236,36 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                       children: [
                         Container(
                           margin: EdgeInsets.fromLTRB(20, 0, 20, 0),
-                          child: DropdownButtonFormField<FarmcropFilterObject>(
+                                child: DropdownButtonFormField<
+                                    FarmcropFilterObject>(
                             isExpanded: true,
                             value: selectedfarmCropFilter,
                             icon: Icon(Icons.arrow_drop_down),
                             iconSize: 24,
                             elevation: 16,
-                            style: TextStyle(color: Colors.black,fontSize: 18),
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 18),
                             onChanged: (FarmcropFilterObject? newValue) {
                               setState(() {
                                 selectedfarmCropFilter = newValue!;
-                                dailyDataSource = DailyDataSource(DailyRecords!,selectedfarmCropFilter.farmcropId!);
-                                practicalDataSource = PracticalDataSource(PracticalGrid!,selectedfarmCropFilter.farmcropId!);
-                                idealDataSource = IdealDataSource(IdealGrid!,selectedfarmCropFilter.farmcropId!);
+                                      dailyDataSource = DailyDataSource(
+                                          DailyRecords!,
+                                          selectedfarmCropFilter.farmcropId!);
+                                      practicalDataSource = PracticalDataSource(
+                                          PracticalGrid!,
+                                          selectedfarmCropFilter.farmcropId!);
+                                      idealDataSource = IdealDataSource(
+                                          IdealGrid!,
+                                          selectedfarmCropFilter.farmcropId!);
                               });
                             },
                             hint: Text('اختر نوع التربة'),
-                            items: (FarmcropFilter ?? [])
-                                .map<DropdownMenuItem<FarmcropFilterObject>>((FarmcropFilterObject value) {
-                              return DropdownMenuItem<FarmcropFilterObject>(
+                                  items: (FarmcropFilter ?? []).map<
+                                          DropdownMenuItem<
+                                              FarmcropFilterObject>>(
+                                      (FarmcropFilterObject value) {
+                                    return DropdownMenuItem<
+                                        FarmcropFilterObject>(
                                 value: value,
                                 child: Text(value.Text!),
                               );
@@ -816,15 +1280,20 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                             icon: Icon(Icons.arrow_drop_down),
                             iconSize: 24,
                             elevation: 16,
-                            style: TextStyle(color: Colors.black,fontSize: 18),
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 18),
                             onChanged: (String? newValue) {
                               setState(() {
                                 whichGrid = newValue!;
                               });
                             },
                             hint: Text('اختر نوع التربة'),
-                            items: <String>[ 'بيانات يوميه', 'جدولة الري الفعليه', 'جدولة الري القياسيه']
-                                .map<DropdownMenuItem<String>>((String value) {
+                                  items: <String>[
+                                    'بيانات يوميه',
+                                    'جدولة الري الفعليه',
+                                    'جدولة الري القياسيه'
+                                  ].map<DropdownMenuItem<String>>(
+                                      (String value) {
                               return DropdownMenuItem<String>(
                                 value: value,
                                 child: Text(value),
@@ -832,84 +1301,113 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                             }).toList(),
                           ),
                         ),
-                        if(whichGrid == 'بيانات يوميه')PaginatedDataTable(
+                              if (whichGrid == 'بيانات يوميه')
+                                PaginatedDataTable(
                           header: Text('البيانات اليومية'),
                           columns: [
                             DataColumn(label: Text('التاريخ')),
                             DataColumn(label: Text('المرحلة')),
-                            DataColumn(label: Text('معدل البخر والنتح (مم/يوم)')),
-                            DataColumn(label: Text('معدل البخر والنتح للمحصول مم/يوم')),
-                            DataColumn(label: Text('معدل تساقط الامطار الفعلي مم')),
+                                    DataColumn(
+                                        label:
+                                            Text('معدل البخر والنتح (مم/يوم)')),
+                                    DataColumn(
+                                        label: Text(
+                                            'معدل البخر والنتح للمحصول مم/يوم')),
+                                    DataColumn(
+                                        label: Text(
+                                            'معدل تساقط الامطار الفعلي مم')),
                             DataColumn(label: Text('معامل المحصول')),
                             DataColumn(label: Text('العمر باليوم')),
-                            DataColumn(label: Text('الاحتياج اليومي م مكعب')),
+                                    DataColumn(
+                                        label: Text('الاحتياج اليومي م مكعب')),
                           ],
                           source: dailyDataSource,
-
                         ),
-                        if(whichGrid == 'جدولة الري الفعليه')PaginatedDataTable(
+                              if (whichGrid == 'جدولة الري الفعليه')
+                                PaginatedDataTable(
                           header: Text('جدولة الري الفعليه'),
                           columns: [
                             DataColumn(label: Text('التاريخ')),
                             DataColumn(label: Text('المرحلة')),
-                            DataColumn(label: Text('كمية المياه المستهلكة م مكعب')),
-                            DataColumn(label: Text('عدد ساعات التشغيل')),
+                                    DataColumn(
+                                        label: Text(
+                                            'كمية المياه المستهلكة م مكعب')),
+                                    DataColumn(
+                                        label: Text('عدد ساعات التشغيل')),
                             DataColumn(label: Text('العمر باليوم')),
-                            DataColumn(label: Text('استهلاك الوقود - لتر')),
-                            DataColumn(label: Text('سعر الوقود المستهلك بالجنيه')),
+                                    DataColumn(
+                                        label: Text('استهلاك الوقود - لتر')),
+                                    DataColumn(
+                                        label: Text(
+                                            'سعر الوقود المستهلك بالجنيه')),
                           ],
                           source: practicalDataSource,
-
                         ),
-                        if(whichGrid == 'جدولة الري القياسيه')PaginatedDataTable(
+                              if (whichGrid == 'جدولة الري القياسيه')
+                                PaginatedDataTable(
                           header: Text('جدولة الري القياسيه'),
                           columns: [
                             DataColumn(label: Text('التاريخ')),
                             DataColumn(label: Text('المرحلة')),
-                            DataColumn(label: Text('كمية المياه المستهلكة م مكعب')),
-                            DataColumn(label: Text('عدد ساعات التشغيل')),
+                                    DataColumn(
+                                        label: Text(
+                                            'كمية المياه المستهلكة م مكعب')),
+                                    DataColumn(
+                                        label: Text('عدد ساعات التشغيل')),
                             DataColumn(label: Text('العمر باليوم')),
-                            DataColumn(label: Text('استهلاك الوقود - لتر')),
-                            DataColumn(label: Text('سعر الوقود المستهلك بالجنيه')),
+                                    DataColumn(
+                                        label: Text('استهلاك الوقود - لتر')),
+                                    DataColumn(
+                                        label: Text(
+                                            'سعر الوقود المستهلك بالجنيه')),
                           ],
                           source: idealDataSource,
-
                         ),
-                        Container(//FOOTER
+                              Container(
+                                //FOOTER
                           padding: EdgeInsets.all(5),
                           decoration: new BoxDecoration(
                             gradient: LinearGradient(
-                                colors: [Color(0xff08aeea), Color(0xff2af598)],
+                                      colors: [
+                                        Color(0xff08aeea),
+                                        Color(0xff2af598)
+                                      ],
                                 begin: const FractionalOffset(0.0, 0.0),
                                 end: const FractionalOffset(0.7, 0.0),
                                 stops: [0.0, 1.0],
-                                tileMode: TileMode.clamp
-                            ),
+                                      tileMode: TileMode.clamp),
                           ),
                           child: Column(
                             children: [
                               Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                           children: <Widget>[
                             Flexible(
-                                child: Image(image: AssetImage('assets/images/msa.png'),
-                                  fit: BoxFit.contain,)
-                            ),
+                                            child: Image(
+                                          image: AssetImage(
+                                              'assets/images/msa.png'),
+                                          fit: BoxFit.contain,
+                                        )),
                             SizedBox(width: 20),
                             Flexible(
-                                child: Image(image: AssetImage('assets/images/iwmi.png'),
-                                  fit: BoxFit.contain,)
-                            ),
+                                            child: Image(
+                                          image: AssetImage(
+                                              'assets/images/iwmi.png'),
+                                          fit: BoxFit.contain,
+                                        )),
                             SizedBox(width: 20),
                             Flexible(
-                                child: Image(image: AssetImage('assets/images/sweri.png'),
-                                  fit: BoxFit.contain,)
-                            )
+                                            child: Image(
+                                          image: AssetImage(
+                                              'assets/images/sweri.png'),
+                                          fit: BoxFit.contain,
+                                        ))
                           ],
                         ),
                               Image(
-                                  image: AssetImage('assets/images/WAPOR.jpg')
-                              )
+                                        image: AssetImage(
+                                            'assets/images/WAPOR.jpg'))
                             ],
                           ),
                         ),
@@ -921,31 +1419,50 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                       children: [
                         Container(
                           margin: EdgeInsets.fromLTRB(20, 0, 20, 0),
-                          child: DropdownButtonFormField<PREVIOUSFarmcropFilterObject>(
+                                child: DropdownButtonFormField<
+                                    PREVIOUSFarmcropFilterObject>(
                             isExpanded: true,
                             value: PREVIOUSselectedfarmCropFilter,
                             icon: Icon(Icons.arrow_drop_down),
                             iconSize: 24,
                             elevation: 16,
-                            style: TextStyle(color: Colors.black,fontSize: 18),
-                            onChanged: (PREVIOUSFarmcropFilterObject? newValue) {
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 18),
+                                  onChanged:
+                                      (PREVIOUSFarmcropFilterObject? newValue) {
                               setState(() {
-                                PREVIOUSselectedfarmCropFilter = newValue!;
-                                PREVIOUSdailyDataSource = PREVIOUSDailyDataSource(PREVIOUSDailyRecords!,PREVIOUSselectedfarmCropFilter.farmcropId!);
-                                PREVIOUSpracticalDataSource = PREVIOUSPracticalDataSource(PREVIOUSPracticalGrid!,PREVIOUSselectedfarmCropFilter.farmcropId!);
-                                PREVIOUSidealDataSource = PREVIOUSIdealDataSource(PREVIOUSIdealGrid!,PREVIOUSselectedfarmCropFilter.farmcropId!);
+                                      PREVIOUSselectedfarmCropFilter =
+                                          newValue!;
+                                      PREVIOUSdailyDataSource =
+                                          PREVIOUSDailyDataSource(
+                                              PREVIOUSDailyRecords!,
+                                              PREVIOUSselectedfarmCropFilter
+                                                  .farmcropId!);
+                                      PREVIOUSpracticalDataSource =
+                                          PREVIOUSPracticalDataSource(
+                                              PREVIOUSPracticalGrid!,
+                                              PREVIOUSselectedfarmCropFilter
+                                                  .farmcropId!);
+                                      PREVIOUSidealDataSource =
+                                          PREVIOUSIdealDataSource(
+                                              PREVIOUSIdealGrid!,
+                                              PREVIOUSselectedfarmCropFilter
+                                                  .farmcropId!);
                               });
                             },
                             hint: Text('اختر نوع التربة'),
-                            items: (PREVIOUSFarmcropFilter ?? []).map<DropdownMenuItem<PREVIOUSFarmcropFilterObject>>(
+                                  items: (PREVIOUSFarmcropFilter ?? []).map<
+                                      DropdownMenuItem<
+                                          PREVIOUSFarmcropFilterObject>>(
                                   (PREVIOUSFarmcropFilterObject value) {
-                                return DropdownMenuItem<PREVIOUSFarmcropFilterObject>(
+                                      return DropdownMenuItem<
+                                          PREVIOUSFarmcropFilterObject>(
                                   value: value,
-                                  child: Text(value.Text ?? "N/A"), // Handle null safely
+                                        child: Text(value.Text ??
+                                            "N/A"), // Handle null safely
                                 );
                               },
                             ).toList(),
-
                           ),
                         ),
                         Container(
@@ -956,15 +1473,20 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                             icon: Icon(Icons.arrow_drop_down),
                             iconSize: 24,
                             elevation: 16,
-                            style: TextStyle(color: Colors.black,fontSize: 18),
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 18),
                             onChanged: (String? newValue) {
                               setState(() {
                                 PREVIOUSwhichGrid = newValue!;
                               });
                             },
                             hint: Text('اختر نوع التربة'),
-                            items: <String>[ 'بيانات يوميه', 'جدولة الري الفعليه', 'جدولة الري القياسيه']
-                                .map<DropdownMenuItem<String>>((String value) {
+                                  items: <String>[
+                                    'بيانات يوميه',
+                                    'جدولة الري الفعليه',
+                                    'جدولة الري القياسيه'
+                                  ].map<DropdownMenuItem<String>>(
+                                      (String value) {
                               return DropdownMenuItem<String>(
                                 value: value,
                                 child: Text(value),
@@ -972,84 +1494,113 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
                             }).toList(),
                           ),
                         ),
-                        if(PREVIOUSwhichGrid == 'بيانات يوميه')PaginatedDataTable(
+                              if (PREVIOUSwhichGrid == 'بيانات يوميه')
+                                PaginatedDataTable(
                           header: Text('البيانات اليومية'),
                           columns: [
                             DataColumn(label: Text('التاريخ')),
                             DataColumn(label: Text('المرحلة')),
-                            DataColumn(label: Text('معدل البخر والنتح (مم/يوم)')),
-                            DataColumn(label: Text('معدل البخر والنتح للمحصول مم/يوم')),
-                            DataColumn(label: Text('معدل تساقط الامطار الفعلي مم')),
+                                    DataColumn(
+                                        label:
+                                            Text('معدل البخر والنتح (مم/يوم)')),
+                                    DataColumn(
+                                        label: Text(
+                                            'معدل البخر والنتح للمحصول مم/يوم')),
+                                    DataColumn(
+                                        label: Text(
+                                            'معدل تساقط الامطار الفعلي مم')),
                             DataColumn(label: Text('معامل المحصول')),
                             DataColumn(label: Text('العمر باليوم')),
-                            DataColumn(label: Text('الاحتياج اليومي م مكعب')),
+                                    DataColumn(
+                                        label: Text('الاحتياج اليومي م مكعب')),
                           ],
                           source: PREVIOUSdailyDataSource,
-
                         ),
-                        if(PREVIOUSwhichGrid == 'جدولة الري الفعليه')PaginatedDataTable(
+                              if (PREVIOUSwhichGrid == 'جدولة الري الفعليه')
+                                PaginatedDataTable(
                           header: Text('جدولة الري الفعليه'),
                           columns: [
                             DataColumn(label: Text('التاريخ')),
                             DataColumn(label: Text('المرحلة')),
-                            DataColumn(label: Text('كمية المياه المستهلكة م مكعب')),
-                            DataColumn(label: Text('عدد ساعات التشغيل')),
+                                    DataColumn(
+                                        label: Text(
+                                            'كمية المياه المستهلكة م مكعب')),
+                                    DataColumn(
+                                        label: Text('عدد ساعات التشغيل')),
                             DataColumn(label: Text('العمر باليوم')),
-                            DataColumn(label: Text('استهلاك الوقود - لتر')),
-                            DataColumn(label: Text('سعر الوقود المستهلك بالجنيه')),
+                                    DataColumn(
+                                        label: Text('استهلاك الوقود - لتر')),
+                                    DataColumn(
+                                        label: Text(
+                                            'سعر الوقود المستهلك بالجنيه')),
                           ],
                           source: PREVIOUSpracticalDataSource,
-
                         ),
-                        if(PREVIOUSwhichGrid == 'جدولة الري القياسيه')PaginatedDataTable(
+                              if (PREVIOUSwhichGrid == 'جدولة الري القياسيه')
+                                PaginatedDataTable(
                           header: Text('جدولة الري القياسيه'),
                           columns: [
                             DataColumn(label: Text('التاريخ')),
                             DataColumn(label: Text('المرحلة')),
-                            DataColumn(label: Text('كمية المياه المستهلكة م مكعب')),
-                            DataColumn(label: Text('عدد ساعات التشغيل')),
+                                    DataColumn(
+                                        label: Text(
+                                            'كمية المياه المستهلكة م مكعب')),
+                                    DataColumn(
+                                        label: Text('عدد ساعات التشغيل')),
                             DataColumn(label: Text('العمر باليوم')),
-                            DataColumn(label: Text('استهلاك الوقود - لتر')),
-                            DataColumn(label: Text('سعر الوقود المستهلك بالجنيه')),
+                                    DataColumn(
+                                        label: Text('استهلاك الوقود - لتر')),
+                                    DataColumn(
+                                        label: Text(
+                                            'سعر الوقود المستهلك بالجنيه')),
                           ],
                           source: PREVIOUSidealDataSource,
-
                         ),
-                        Container(//FOOTER
+                              Container(
+                                //FOOTER
                           padding: EdgeInsets.all(5),
                           decoration: new BoxDecoration(
                             gradient: LinearGradient(
-                                colors: [Color(0xff08aeea), Color(0xff2af598)],
+                                      colors: [
+                                        Color(0xff08aeea),
+                                        Color(0xff2af598)
+                                      ],
                                 begin: const FractionalOffset(0.0, 0.0),
                                 end: const FractionalOffset(0.7, 0.0),
                                 stops: [0.0, 1.0],
-                                tileMode: TileMode.clamp
-                            ),
+                                      tileMode: TileMode.clamp),
                           ),
                           child: Column(
                             children: [
                               Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                           children: <Widget>[
                             Flexible(
-                                child: Image(image: AssetImage('assets/images/msa.png'),
-                                  fit: BoxFit.contain,)
-                            ),
+                                            child: Image(
+                                          image: AssetImage(
+                                              'assets/images/msa.png'),
+                                          fit: BoxFit.contain,
+                                        )),
                             SizedBox(width: 20),
                             Flexible(
-                                child: Image(image: AssetImage('assets/images/iwmi.png'),
-                                  fit: BoxFit.contain,)
-                            ),
+                                            child: Image(
+                                          image: AssetImage(
+                                              'assets/images/iwmi.png'),
+                                          fit: BoxFit.contain,
+                                        )),
                             SizedBox(width: 20),
                             Flexible(
-                                child: Image(image: AssetImage('assets/images/sweri.png'),
-                                  fit: BoxFit.contain,)
-                            )
+                                            child: Image(
+                                          image: AssetImage(
+                                              'assets/images/sweri.png'),
+                                          fit: BoxFit.contain,
+                                        ))
                           ],
                         ),
                               Image(
-                                  image: AssetImage('assets/images/WAPOR.jpg')
-                              )
+                                        image: AssetImage(
+                                            'assets/images/WAPOR.jpg'))
                             ],
                           ),
                         ),
@@ -1066,12 +1617,11 @@ class _farmcropState extends State<farmcrop> with SingleTickerProviderStateMixin
   }
 }
 
-class DailyDataSource extends DataTableSource{
-
+class DailyDataSource extends DataTableSource {
   final DateFormat formatter = DateFormat('yyyy/MM/dd');
 
  late List<DailyRecordsObject> data;
- late int count;  // Ensure it's initialized
+  late int count; // Ensure it's initialized
 
  DailyDataSource(List<DailyRecordsObject> alldata, String cropid) {
    data = []; // Initialize empty list
@@ -1094,11 +1644,10 @@ class DailyDataSource extends DataTableSource{
     return data; // Ensure a string is always returned
   }
 
-
   @override
   DataRow getRow(int index) {
     // TODO: implement getRow
-    return DataRow.byIndex(index: index,cells: [
+    return DataRow.byIndex(index: index, cells: [
       DataCell(Text(formatter.format(data[index].date!))),
       DataCell(Text(data[index].stage!)),
       DataCell(Text(data[index].eto!)),
@@ -1122,19 +1671,17 @@ class DailyDataSource extends DataTableSource{
   @override
   // TODO: implement selectedRowCount
   int get selectedRowCount => 0;
-
 }
 
-class PracticalDataSource extends DataTableSource{
-
+class PracticalDataSource extends DataTableSource {
   final DateFormat formatter = DateFormat('yyyy/MM/dd');
-
 
   List<PracticalGridObject> data = [];
   int count;
 
   PracticalDataSource(List<PracticalGridObject> alldata, String cropid)
-      : count = 0 { // Initialize count before constructor body
+      : count = 0 {
+    // Initialize count before constructor body
     for (var item in alldata) {
       if (item.farmcropId == cropid) {
         data.add(item);
@@ -1156,7 +1703,7 @@ class PracticalDataSource extends DataTableSource{
   @override
   DataRow getRow(int index) {
     // TODO: implement getRow
-    return DataRow.byIndex(index: index,cells: [
+    return DataRow.byIndex(index: index, cells: [
       DataCell(Text(formatter.format(data[index].date!))),
       DataCell(Text(data[index].stage!)),
       DataCell(Text(data[index].irrtotal!)),
@@ -1179,10 +1726,9 @@ class PracticalDataSource extends DataTableSource{
   @override
   // TODO: implement selectedRowCount
   int get selectedRowCount => 0;
-
 }
 
-class IdealDataSource extends DataTableSource{
+class IdealDataSource extends DataTableSource {
   List<IdealGridObject> data = []; // Initialize with an empty list
   int count = 0;
   final DateFormat formatter = DateFormat('yyyy/MM/dd');
@@ -1206,7 +1752,7 @@ class IdealDataSource extends DataTableSource{
   @override
   DataRow getRow(int index) {
     // TODO: implement getRow
-    return DataRow.byIndex(index: index,cells: [
+    return DataRow.byIndex(index: index, cells: [
       DataCell(Text(formatter.format(data[index].date!))),
       DataCell(Text(data[index].stage!)),
       DataCell(Text(data[index].irrtotal!)),
@@ -1229,15 +1775,15 @@ class IdealDataSource extends DataTableSource{
   @override
   // TODO: implement selectedRowCount
   int get selectedRowCount => 0;
-
 }
 
-class PREVIOUSDailyDataSource extends DataTableSource{
+class PREVIOUSDailyDataSource extends DataTableSource {
   List<PREVIOUSDailyRecordsObject> data = []; // Correct list initialization
   int count = 0; // Initialize count
   final DateFormat formatter = DateFormat('yyyy/MM/dd');
 
-  PREVIOUSDailyDataSource(List<PREVIOUSDailyRecordsObject> alldata, String cropid) {
+  PREVIOUSDailyDataSource(
+      List<PREVIOUSDailyRecordsObject> alldata, String cropid) {
     data = []; // Ensure list is empty before adding elements
 
     for (var item in alldata) {
@@ -1249,7 +1795,7 @@ class PREVIOUSDailyDataSource extends DataTableSource{
     count = data.length; // Set count after processing
   }
 
-  void updateData(){
+  void updateData() {
     //data += '1';
     count--;
   }
@@ -1257,7 +1803,7 @@ class PREVIOUSDailyDataSource extends DataTableSource{
   @override
   DataRow getRow(int index) {
     // TODO: implement getRow
-    return DataRow.byIndex(index: index,cells: [
+    return DataRow.byIndex(index: index, cells: [
       DataCell(Text(formatter.format(data[index].date!))),
       DataCell(Text(data[index].stage!)),
       DataCell(Text(data[index].eto!)),
@@ -1281,20 +1827,20 @@ class PREVIOUSDailyDataSource extends DataTableSource{
   @override
   // TODO: implement selectedRowCount
   int get selectedRowCount => 0;
-
 }
 
-class PREVIOUSPracticalDataSource extends DataTableSource{
+class PREVIOUSPracticalDataSource extends DataTableSource {
   late List<PREVIOUSPracticalGridObject> data;
   late int count;
   final DateFormat formatter = DateFormat('yyyy/MM/dd');
 
-  PREVIOUSPracticalDataSource(List<PREVIOUSPracticalGridObject> alldata, String cropid) {
+  PREVIOUSPracticalDataSource(
+      List<PREVIOUSPracticalGridObject> alldata, String cropid) {
     data = alldata.where((item) => item.farmcropId == cropid).toList();
     count = data.length;
   }
 
-  void updateData(){
+  void updateData() {
     //data += '1';
     count--;
   }
@@ -1302,7 +1848,7 @@ class PREVIOUSPracticalDataSource extends DataTableSource{
   @override
   DataRow getRow(int index) {
     // TODO: implement getRow
-    return DataRow.byIndex(index: index,cells: [
+    return DataRow.byIndex(index: index, cells: [
       DataCell(Text(formatter.format(data[index].date!))),
       DataCell(Text(data[index].stage!)),
       DataCell(Text(data[index].irrtotal!)),
@@ -1325,20 +1871,20 @@ class PREVIOUSPracticalDataSource extends DataTableSource{
   @override
   // TODO: implement selectedRowCount
   int get selectedRowCount => 0;
-
 }
 
-class PREVIOUSIdealDataSource extends DataTableSource{
+class PREVIOUSIdealDataSource extends DataTableSource {
   late List<PREVIOUSIdealGridObject> data;
   late int count; // Marking as `late` ensures it's initialized before use.
   final DateFormat formatter = DateFormat('yyyy/MM/dd');
 
-  PREVIOUSIdealDataSource(List<PREVIOUSIdealGridObject> alldata, String cropid) {
+  PREVIOUSIdealDataSource(
+      List<PREVIOUSIdealGridObject> alldata, String cropid) {
     data = alldata.where((item) => item.farmcropId == cropid).toList();
     count = data.length;
   }
 
-  void updateData(){
+  void updateData() {
     //data += '1';
     count--;
   }
@@ -1346,7 +1892,7 @@ class PREVIOUSIdealDataSource extends DataTableSource{
   @override
   DataRow getRow(int index) {
     // TODO: implement getRow
-    return DataRow.byIndex(index: index,cells: [
+    return DataRow.byIndex(index: index, cells: [
       DataCell(Text(formatter.format(data[index].date!))),
       DataCell(Text(data[index].stage!)),
       DataCell(Text(data[index].irrtotal!)),
@@ -1369,7 +1915,6 @@ class PREVIOUSIdealDataSource extends DataTableSource{
   @override
   // TODO: implement selectedRowCount
   int get selectedRowCount => 0;
-
 }
 
 Route goToLogin() {
@@ -1392,8 +1937,18 @@ Route goToLogin() {
 
 showMoreInfoDialog(BuildContext context, farmcropObject myfarmcrop) {
   // set up the buttons
-  Widget cancelButton = TextButton(
-    child: Text("اغلاق"),
+  Widget cancelButton = ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Color(0xff26a69a),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    ),
+    child: Text(
+      "اغلاق",
+      style: TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
     onPressed: () {
       Navigator.of(context).pop();
     },
@@ -1403,7 +1958,18 @@ showMoreInfoDialog(BuildContext context, farmcropObject myfarmcrop) {
 
   // set up the AlertDialog
   AlertDialog alert = AlertDialog(
-    title: Text("بيانات المحصول", textAlign: TextAlign.center,),
+    title: Text(
+      "بيانات المحصول",
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        color: Color(0xff26a69a),
+      ),
+    ),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(15),
+    ),
     content: Container(
       height: 350,
       child: Scrollbar(
@@ -1412,108 +1978,239 @@ showMoreInfoDialog(BuildContext context, farmcropObject myfarmcrop) {
             Row(
               children: [
                 //Icon(Icons.hourglass_empty,color: Colors.black,size: 22,),
-                FaIcon(FontAwesomeIcons.leaf,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.leaf,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('المحصول:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'المحصول:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(myfarmcrop.cropname!,style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  myfarmcrop.cropname!,
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.calendar,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.calendar,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('تاريخ الزراعة:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'تاريخ الزراعة:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(formatter.format(myfarmcrop.plantingdate!),style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  formatter.format(myfarmcrop.plantingdate!),
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.calendar,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.calendar,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('تاريخ الحصاد:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'تاريخ الحصاد:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(formatter.format(myfarmcrop.harvestdate!),style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  formatter.format(myfarmcrop.harvestdate!),
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.tree,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.tree,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('المرحلة:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'المرحلة:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(myfarmcrop.stage!,style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  myfarmcrop.stage!,
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.calendar,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.calendar,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('الرية القادمة:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'الرية القادمة:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(formatter.format(myfarmcrop.nextirrigationdate!),style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  formatter.format(myfarmcrop.nextirrigationdate!),
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.clock,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.clock,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('عدد ساعات رية الزراعة:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'عدد ساعات رية الزراعة:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(myfarmcrop.initirrigationhours.toString(),style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  (myfarmcrop.initirrigationhours ?? 0).toString(),
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.water,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.water,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('المياه المطلوبة اليوم:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'المياه المطلوبة اليوم:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
                 Flexible(
                   child: Text(
-                    (double.tryParse(myfarmcrop.irrday!) ?? 0.0).toStringAsFixed(2),
+                    (double.tryParse(myfarmcrop.irrday!) ?? 0.0)
+                        .toStringAsFixed(2),
                     style: TextStyle(fontSize: 18),
                   ),
                 )
-              ],mainAxisSize: MainAxisSize.min,
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.chartArea,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.chartArea,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('المساحة:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'المساحة:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(myfarmcrop.area.toString() + myfarmcrop.measuringunitname!,style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  (myfarmcrop.area ?? 0).toString() +
+                      (myfarmcrop.measuringunitname ?? ''),
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
             Row(
               children: [
-                FaIcon(FontAwesomeIcons.handHoldingWater,color: Colors.black,),
+                FaIcon(
+                  FontAwesomeIcons.handHoldingWater,
+                  color: Colors.black,
+                ),
                 SizedBox(width: 10),
-                Text('نوع الري:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                Text(
+                  'نوع الري:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(width: 5),
-                Text(myfarmcrop.irrigationmethodname!,style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
+                Text(
+                  myfarmcrop.irrigationmethodname!,
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+              mainAxisSize: MainAxisSize.min,
             ),
-            if(myfarmcrop.cropname!.contains('رز')) Row(
+            if (myfarmcrop.cropname!.contains('رز'))
+              Row(
               children: [
-                FaIcon(FontAwesomeIcons.clock,color: Colors.black,),
+                  FaIcon(
+                    FontAwesomeIcons.clock,
+                    color: Colors.black,
+                  ),
                 SizedBox(width: 10),
-                Text('عدد ساعات طفي الشراقي:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                  Text(
+                    'عدد ساعات طفي الشراقي:',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 SizedBox(width: 5),
-                Text(myfarmcrop.irrigtaionshraky.toString(),style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
-            ),
-            if(myfarmcrop.cropname!.contains('رز')) Row(
+                  Text(
+                    myfarmcrop.irrigtaionshraky.toString(),
+                    style: TextStyle(
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+                mainAxisSize: MainAxisSize.min,
+              ),
+            if (myfarmcrop.cropname!.contains('رز'))
+              Row(
               children: [
-                FaIcon(FontAwesomeIcons.clock,color: Colors.black,),
+                  FaIcon(
+                    FontAwesomeIcons.clock,
+                    color: Colors.black,
+                  ),
                 SizedBox(width: 10),
-                Text('عدد ساعات ري المشتل:',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
+                  Text(
+                    'عدد ساعات ري المشتل:',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 SizedBox(width: 5),
-                Text(myfarmcrop.irrigationmashtal.toString(),style: TextStyle(fontSize: 18,),),
-              ],mainAxisSize: MainAxisSize.min,
-            ),
+                  Text(
+                    myfarmcrop.irrigationmashtal.toString(),
+                    style: TextStyle(
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+                mainAxisSize: MainAxisSize.min,
+              ),
           ],
         ),
       ),
@@ -1532,34 +2229,55 @@ showMoreInfoDialog(BuildContext context, farmcropObject myfarmcrop) {
   );
 }
 
-showWaterNeedsDialog(BuildContext context, farmcropObject myfarmcrop,int farmid) {
+showWaterNeedsDialog(
+    BuildContext context, farmcropObject myfarmcrop, int farmid) {
   showDialog(
       context: context,
       builder: (BuildContext context) {
-        return MyConfirmDateDialog(context, myfarmcrop.farmcropId!,farmid,myfarmcrop.lastirrigationdate!);
-      }
-  );
+        return MyConfirmDateDialog(context, myfarmcrop.farmcropId ?? 0, farmid,
+            myfarmcrop.lastirrigationdate ?? DateTime.now());
+      });
 }
 
-showAddFarmCropDialog(context,cropTypes,irrigationMethods,measuringUnits,farmid) {
+showAddFarmCropDialog(
+    context, cropTypes, irrigationMethods, measuringUnits, farmid) {
   showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AddFarmCropDialog(cropTypes,irrigationMethods,measuringUnits,farmid);
-      },barrierDismissible: false
-  );
+        return AddFarmCropDialog(
+            cropTypes, irrigationMethods, measuringUnits, farmid);
+      },
+      barrierDismissible: false);
 }
-showEditFarmCropDialog(BASEcontext,cropTypes,irrigationMethods,measuringUnits,farmid,myfarmcrop) {
+
+showEditFarmCropDialog({
+  required BuildContext BASEcontext,
+  required List<irrigationMethodObject> irrigationMethods,
+  required List<MeasringObject> measures,
+  required int farmid,
+  required farmcropObject myfarmcrop,
+}) {
   showDialog(
       context: BASEcontext,
       builder: (BuildContext context) {
-        return EditFarmCropDialog(irrigationMethods,measuringUnits,farmid,myfarmcrop,BASEcontext);
-      },barrierDismissible: false
-  );
+        return EditFarmCropDialog(
+            irrigationMethods: irrigationMethods,
+            measures: measures,
+            farmid: farmid,
+            myfarmcrop: myfarmcrop,
+            BASEcontext: BASEcontext);
+      },
+      barrierDismissible: false);
 }
 
 /////////////// FETCH ALL DATA ////////////////////////
-Future<List<String>> fetchAll(http.Client client,farmid,http.Client client2,http.Client client3,http.Client client4,) async {
+Future<List<String>> fetchAll(
+  http.Client client,
+  farmid,
+  http.Client client2,
+  http.Client client3,
+  http.Client client4,
+) async {
   await flutterLocalNotificationsPlugin.cancelAll();
   List<String> responses = await Future.wait([
     fetchFarmcrops(client, farmid),
@@ -1591,16 +2309,28 @@ Future<List<String>> fetchAll(http.Client client,farmid,http.Client client2,http
 }
 
 /////////////// FARMCROPS FETCH DATA ////////////////////////
-Future<String> fetchFarmcrops(http.Client client,farmid) async {
-
+Future<String> fetchFarmcrops(http.Client client, farmid) async {
+  try {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   var mydata = jsonEncode({
     'farmid': farmid,
   });
+
+    // Log the request
+    print('\n=== FARMCROPS API REQUEST ===');
+    print('URL: https://irwicrop.com/Home/RemoteDataSource_GetFarmCrops');
+    print('Method: POST');
+    print('Headers: {');
+    print('  Content-Type: application/json; charset=UTF-8');
+    print('  Cookie: ${cookie.substring(0, math.min(50, cookie.length))}...');
+    print('}');
+    print('Body: $mydata');
+    print('============================\n');
+
   final response = await client.post(
-    Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetFarmCrops'), // Convert String to Uri
+      Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetFarmCrops'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie
@@ -1608,19 +2338,32 @@ Future<String> fetchFarmcrops(http.Client client,farmid) async {
     body: mydata,
   );
 
+    // Log the response
+    print('\n=== FARMCROPS API RESPONSE ===');
+    print('Status Code: ${response.statusCode}');
+    print('Response Headers: ${response.headers}');
+    print('Response Body Length: ${response.body.length}');
+    print('Response Body: ${response.body}');
+    print('=============================\n');
 
-  // Use the compute function to run parseFarms in a separate isolate.
-  //return compute(parseFarmcrops, response.body);
   return response.body;
+  } catch (e, stackTrace) {
+    print('\n=== FARMCROPS API ERROR ===');
+    print('Error: $e');
+    print('Stack Trace: $stackTrace');
+    print('=========================\n');
+    rethrow;
+  }
 }
 
 // A function that converts a response body into a List<Photo>.
 List<farmcropObject> parseFarmcrops(String responseBody) {
   final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
 
-  return parsed.map<farmcropObject>((json) => farmcropObject.fromJson(json)).toList();
+  return parsed
+      .map<farmcropObject>((json) => farmcropObject.fromJson(json))
+      .toList();
 }
-
 
 class farmcropObject {
   int? archived;
@@ -1648,67 +2391,122 @@ class farmcropObject {
   //irrday = p.dailyrecords.Last().irrday;
   String? irrday;
   DateTime? plantingdate;
-  farmcropObject({this.archived, this.farmcropId, this.lastirrigationdate, this.irrigationmethodId,
-    this.area, this.measuringunitId, this.initirrigationhours, this.cropname, this.cropimg, this.croptotaldays,
-    this.irrigationmashtal, this.irrigtaionshraky, this.nextirrigationdate, this.stopirrigationdate, this.stage,
-    this.harvestdate, this.LASTNPP, this.measuringunitname, this.irrigationmethodname, this.agebyday, this.irrday, this.plantingdate});
+  farmcropObject(
+      {this.archived,
+      this.farmcropId,
+      this.lastirrigationdate,
+      this.irrigationmethodId,
+      this.area,
+      this.measuringunitId,
+      this.initirrigationhours,
+      this.cropname,
+      this.cropimg,
+      this.croptotaldays,
+      this.irrigationmashtal,
+      this.irrigtaionshraky,
+      this.nextirrigationdate,
+      this.stopirrigationdate,
+      this.stage,
+      this.harvestdate,
+      this.LASTNPP,
+      this.measuringunitname,
+      this.irrigationmethodname,
+      this.agebyday,
+      this.irrday,
+      this.plantingdate});
 
   factory farmcropObject.fromJson(Map<String, dynamic> json) {
-    return farmcropObject(
-      archived: json['archived'] as int,
-      farmcropId: json['farmcropId'] as int,
-      lastirrigationdate: json['lastirrigationdate'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(int.tryParse(json['lastirrigationdate'].substring(6, 19)) ?? 0)
-          : null,
-      irrigationmethodId: json['irrigationmethodId'] as int,
-      area: double.tryParse(json['area'].toString()),
-      measuringunitId: json['measuringunitId'] as int,
-      initirrigationhours: json['initirrigationhours'] as int,
-      cropname: json['crop']['name'].toString().trim(),
-      cropimg: json['crop']['img'].toString().trim(),
-      croptotaldays: json['crop']['totaldays'].toString().trim(),
-      irrigationmashtal: json['irrigationmashtal'] as int,
-      irrigtaionshraky: json['irrigtaionshraky'] as int,
-      nextirrigationdate: json['nextirrigationdate'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(int.tryParse(json['nextirrigationdate'].substring(6, 19)) ?? 0)
-          : null,
+    // Handle null check for nested crop object and provide flat-key fallbacks
+    final Map<String, dynamic>? cropData =
+        json['crop'] as Map<String, dynamic>?;
 
+    String? _trimOrNull(dynamic v) => v == null ? null : v.toString().trim();
+
+    return farmcropObject(
+      archived: json['archived'] as int?,
+      farmcropId: json['farmcropId'] as int?,
+      lastirrigationdate: json['lastirrigationdate'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(
+              int.tryParse(json['lastirrigationdate'].substring(6, 19)) ?? 0)
+          : null,
+      irrigationmethodId: json['irrigationmethodId'] as int?,
+      area: json['area'] != null
+          ? double.tryParse(json['area'].toString())
+          : null,
+      measuringunitId: json['measuringunitId'] as int?,
+      initirrigationhours: json['initirrigationhours'] as int?,
+      // Prefer nested values, fallback to flat API keys like 'cropname', 'cropimg', 'croptotaldays'
+      cropname: _trimOrNull(cropData?['name']) ?? _trimOrNull(json['cropname']),
+      cropimg: _trimOrNull(cropData?['img']) ?? _trimOrNull(json['cropimg']),
+      croptotaldays:
+          _trimOrNull(cropData?['totaldays']) ?? _trimOrNull(json['croptotaldays']) ?? _trimOrNull(json['totaldays']),
+      irrigationmashtal: json['irrigationmashtal'] as int?,
+      irrigtaionshraky: json['irrigtaionshraky'] as int?,
+      nextirrigationdate: json['nextirrigationdate'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(
+              int.tryParse(json['nextirrigationdate'].substring(6, 19)) ?? 0)
+          : null,
       stopirrigationdate: json['stopirrigationdate'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(int.tryParse(json['stopirrigationdate'].substring(6, 19)) ?? 0)
+          ? DateTime.fromMillisecondsSinceEpoch(
+              int.tryParse(json['stopirrigationdate'].substring(6, 19)) ?? 0)
           : null,
-      stage: json['stage'].toString(),
+      stage: json['stage']?.toString(),
       harvestdate: json['harvestdate'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(int.tryParse(json['harvestdate'].substring(6, 19)) ?? 0)
+          ? DateTime.fromMillisecondsSinceEpoch(
+              int.tryParse(json['harvestdate'].substring(6, 19)) ?? 0)
           : null,
-      LASTNPP: json['LASTNPP'].toString(),
-      measuringunitname: json['measuringunit']['name'].toString(),
-      irrigationmethodname: json['irrigationmethod']['name'].toString(),
-      agebyday: json['agebyday'].toString(),
-      irrday: json['irrday'].toString(),
+      LASTNPP: json['LASTNPP']?.toString(),
+      measuringunitname: json['measuringunit']?['name']?.toString(),
+      irrigationmethodname: json['irrigationmethod']?['name']?.toString(),
+      agebyday: json['agebyday']?.toString(),
+      irrday: json['irrday']?.toString(),
       plantingdate: json['plantingdate'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(int.tryParse(json['plantingdate'].substring(6, 19)) ?? 0)
-          : null,    );
+          ? DateTime.fromMillisecondsSinceEpoch(
+              int.tryParse(json['plantingdate'].substring(6, 19)) ?? 0)
+          : null,
+    );
   }
 }
 
 /////////////// CROPS FETCH DATA ////////////////////////
 Future<String> fetchCrops(http.Client client) async {
+  try {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String cookie = (prefs.getString('cookie') ?? '');
 
-  SharedPreferences prefs = await SharedPreferences.getInstance();
-  String cookie = (prefs.getString('cookie') ?? '');
+    // Log request
+    print('\n=== CROPS API REQUEST ===');
+    print('URL: https://irwicrop.com/Home/RemoteDataSource_GetCrops');
+    print('Method: GET');
+    print('Headers: { Content-Type: application/json; charset=UTF-8, Cookie: ${cookie.isNotEmpty ? '${cookie.substring(0, cookie.length > 50 ? 50 : cookie.length)}...' : ''} }');
+    print('==========================');
 
-  final response = await client.get(
-    Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetCrops'),
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie': cookie
-    },
-  );
+    final response = await client.get(
+      Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetCrops'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Cookie': cookie
+      },
+    );
 
+    // Log response
+    print('\n=== CROPS API RESPONSE ===');
+    print('Status Code: ${response.statusCode}');
+    print('Response Headers: ${response.headers}');
+    print('Response Body Length: ${response.body.length}');
+    print('Response Body: ${response.body}');
+    print('==========================\n');
 
-  // Use the compute function to run parseFarms in a separate isolate.
-  //return compute(parseCrops, response.body);
-  return response.body;
+    // Use the compute function to run parseFarms in a separate isolate.
+    //return compute(parseCrops, response.body);
+    return response.body;
+  } catch (e, st) {
+    print('\n=== CROPS API ERROR ===');
+    print('Error: $e');
+    print('Stack Trace: $st');
+    print('========================\n');
+    rethrow;
+  }
 }
 
 // A function that converts a response body into a List<Photo>.
@@ -1717,7 +2515,6 @@ List<cropObject> parseCrops(String responseBody) {
 
   return parsed.map<cropObject>((json) => cropObject.fromJson(json)).toList();
 }
-
 
 class cropObject {
   String? cropId;
@@ -1736,7 +2533,6 @@ class cropObject {
 
 /////////////// MEASURING FETCH DATA ////////////////////////
 Future<String> fetchMeasring(http.Client client) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
@@ -1748,7 +2544,6 @@ Future<String> fetchMeasring(http.Client client) async {
     },
   );
 
-
   // Use the compute function to run parseFarms in a separate isolate.
   //return compute(parseCrops, response.body);
   return response.body;
@@ -1758,7 +2553,9 @@ Future<String> fetchMeasring(http.Client client) async {
 List<MeasringObject> parseMeasring(String responseBody) {
   final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
 
-  return parsed.map<MeasringObject>((json) => MeasringObject.fromJson(json)).toList();
+  return parsed
+      .map<MeasringObject>((json) => MeasringObject.fromJson(json))
+      .toList();
 }
 
 class MeasringObject {
@@ -1776,18 +2573,17 @@ class MeasringObject {
 
 /////////////// IRRIGATION FETCH DATA ////////////////////////
 Future<String> fetchIrrigationMethod(http.Client client) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   final response = await client.get(
-    Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetIrrigationMethods'),
+    Uri.parse(
+        'https://irwicrop.com/Home/RemoteDataSource_GetIrrigationMethods'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie
     },
   );
-
 
   // Use the compute function to run parseFarms in a separate isolate.
   //return compute(parseIrrigation, response.body);
@@ -1796,50 +2592,50 @@ Future<String> fetchIrrigationMethod(http.Client client) async {
 
 /////////////// PracticalGrid FETCH DATA ////////////////////////
 Future<String> fetchPracticalGrid(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   final response = await http.Client().get(
-    Uri.parse('https://irwicrop.com/Home/getPracticalGrid?recordfarmid=${farmid.toString()}'),
+    Uri.parse(
+        'https://irwicrop.com/Home/getPracticalGrid?recordfarmid=${farmid.toString()}'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie
     },
   );
 
-
   // Use the compute function to run parseFarms in a separate isolate.
   //return compute(parseIrrigation, response.body);
   return response.body;
 }
+
 /////////////// PREVIOUSPracticalGrid FETCH DATA ////////////////////////
 Future<String> fetchPREVIOUSPracticalGrid(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   final response = await http.Client().get(
-    Uri.parse('https://irwicrop.com/Home/PREVIOUSgetPracticalGrid?recordfarmid=${farmid ?? ''}'),
+    Uri.parse(
+        'https://irwicrop.com/Home/PREVIOUSgetPracticalGrid?recordfarmid=${farmid ?? ''}'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie
     },
   );
 
-
   // Use the compute function to run parseFarms in a separate isolate.
   //return compute(parseIrrigation, response.body);
   return response.body;
 }
+
 /////////////// IdealGrid FETCH DATA ////////////////////////
 Future<String> fetchIdealGrid(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   final response = await http.get(
-    Uri.parse('https://irwicrop.com/Home/getIdealGrid?recordfarmid=${farmid ?? ''}'),
+    Uri.parse(
+        'https://irwicrop.com/Home/getIdealGrid?recordfarmid=${farmid ?? ''}'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
@@ -1850,14 +2646,15 @@ Future<String> fetchIdealGrid(farmid) async {
   //return compute(parseIrrigation, response.body);
   return response.body;
 }
+
 /////////////// PREVIOUSIdealGrid FETCH DATA ////////////////////////
 Future<String> fetchPREVIOUSIdealGrid(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   final response = await http.get(
-    Uri.parse('https://irwicrop.com/Home/PREVIOUSgetIdealGrid?recordfarmid=${farmid.toString()}'),
+    Uri.parse(
+        'https://irwicrop.com/Home/PREVIOUSgetIdealGrid?recordfarmid=${farmid.toString()}'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
@@ -1868,33 +2665,34 @@ Future<String> fetchPREVIOUSIdealGrid(farmid) async {
   //return compute(parseIrrigation, response.body);
   return response.body;
 }
+
 /////////////// DailyRecordslGrid FETCH DATA ////////////////////////
 Future<String> fetchDailyRecords(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   final response = await http.get(
-    Uri.parse('https://irwicrop.com/Home/PREVIOUSgetIdealGrid?recordfarmid=${farmid.toString()}'),
+    Uri.parse(
+        'https://irwicrop.com/Home/PREVIOUSgetIdealGrid?recordfarmid=${farmid.toString()}'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
     },
   );
 
-
   // Use the compute function to run parseFarms in a separate isolate.
   //return compute(parseIrrigation, response.body);
   return response.body;
 }
+
 /////////////// PREVIOUSDailyRecordsGrid FETCH DATA ////////////////////////
 Future<String> fetchPREVIOUSDailyRecords(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
   final response = await http.get(
-    Uri.parse('https://irwicrop.com/Home/PREVIOUSgetDailyRecords?recordfarmid=${farmid.toString()}'),
+    Uri.parse(
+        'https://irwicrop.com/Home/PREVIOUSgetDailyRecords?recordfarmid=${farmid.toString()}'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
@@ -1905,17 +2703,20 @@ Future<String> fetchPREVIOUSDailyRecords(farmid) async {
   //return compute(parseIrrigation, response.body);
   return response.body;
 }
+
 /////////////// FarmcropFilter FETCH DATA ////////////////////////
 Future<String> fetchFarmcropFilter(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
-  final response =
-  await http.Client().get(Uri.parse('https://irwicrop.com/Home/getFarmcropFilter?recordfarmid='+farmid.toString(),),
+  final response = await http.Client().get(
+    Uri.parse(
+      'https://irwicrop.com/Home/getFarmcropFilter?recordfarmid=' +
+          farmid.toString(),
+    ),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie':cookie
+      'Cookie': cookie
     },
   );
 
@@ -1923,17 +2724,20 @@ Future<String> fetchFarmcropFilter(farmid) async {
   //return compute(parseIrrigation, response.body);
   return response.body;
 }
+
 /////////////// FarmcropFilter FETCH DATA ////////////////////////
 Future<String> fetchPREVIOUSFarmcropFilter(farmid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
-  final response =
-  await http.Client().get(Uri.parse('https://irwicrop.com/Home/PREVIOUSgetFarmcropFilter?recordfarmid='+farmid.toString(),),
+  final response = await http.Client().get(
+    Uri.parse(
+      'https://irwicrop.com/Home/PREVIOUSgetFarmcropFilter?recordfarmid=' +
+          farmid.toString(),
+    ),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie':cookie
+      'Cookie': cookie
     },
   );
 
@@ -1946,9 +2750,11 @@ Future<String> fetchPREVIOUSFarmcropFilter(farmid) async {
 List<irrigationMethodObject> parseIrrigationMethod(String responseBody) {
   final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
 
-  return parsed.map<irrigationMethodObject>((json) => irrigationMethodObject.fromJson(json)).toList();
+  return parsed
+      .map<irrigationMethodObject>(
+          (json) => irrigationMethodObject.fromJson(json))
+      .toList();
 }
-
 
 class irrigationMethodObject {
   String? irrigationmethodId;
@@ -1964,14 +2770,17 @@ class irrigationMethodObject {
     );
   }
 }
+
  //////////////////////////////// PARSE DailyRecords ///////////////////////////////////
 List<DailyRecordsObject> parseDailyRecords(String responseBody) {
-  var temp  = jsonDecode(responseBody);
-  var temp2  = temp['Data'];
-  var temp3  = jsonEncode(temp2);
+  var temp = jsonDecode(responseBody);
+  var temp2 = temp['Data'];
+  var temp3 = jsonEncode(temp2);
   final parsed = jsonDecode(temp3).cast<Map<String, dynamic>>();
 
-  return parsed.map<DailyRecordsObject>((json) => DailyRecordsObject.fromJson(json)).toList();
+  return parsed
+      .map<DailyRecordsObject>((json) => DailyRecordsObject.fromJson(json))
+      .toList();
 }
 
 class DailyRecordsObject {
@@ -1986,17 +2795,25 @@ class DailyRecordsObject {
   String? irrday;
   String? agebyday;
   String? daystillharvest;
-  DailyRecordsObject({this.dailyrecordId, this.farmcropId, this.date,
-    this.stage, this.eto, this.etc, this.pe, this.kc, this.irrday, this.agebyday, this.daystillharvest});
+  DailyRecordsObject(
+      {this.dailyrecordId,
+      this.farmcropId,
+      this.date,
+      this.stage,
+      this.eto,
+      this.etc,
+      this.pe,
+      this.kc,
+      this.irrday,
+      this.agebyday,
+      this.daystillharvest});
 
   factory DailyRecordsObject.fromJson(Map<String, dynamic> json) {
     return DailyRecordsObject(
       dailyrecordId: json['dailyrecordId'].toString(),
       farmcropId: json['farmcropId'].toString().trim(),
       date: DateTime.fromMillisecondsSinceEpoch(
-          int.tryParse(json['date'].substring(6,19)) ?? 0
-      ),
-
+          int.tryParse(json['date'].substring(6, 19)) ?? 0),
       stage: json['stage'].toString().trim(),
       eto: json['eto'].toString().trim(),
       etc: json['etc'].toString().trim(),
@@ -2008,14 +2825,17 @@ class DailyRecordsObject {
     );
   }
 }
+
 /////////////////////////////  PracticalGrid  /////////////////////////
 List<PracticalGridObject> parsePracticalGrid(String responseBody) {
-  var temp  = jsonDecode(responseBody);
-  var temp2  = temp['Data'];
-  var temp3  = jsonEncode(temp2);
+  var temp = jsonDecode(responseBody);
+  var temp2 = temp['Data'];
+  var temp3 = jsonEncode(temp2);
   final parsed = jsonDecode(temp3).cast<Map<String, dynamic>>();
 
-  return parsed.map<PracticalGridObject>((json) => PracticalGridObject.fromJson(json)).toList();
+  return parsed
+      .map<PracticalGridObject>((json) => PracticalGridObject.fromJson(json))
+      .toList();
 }
 
 class PracticalGridObject {
@@ -2028,16 +2848,24 @@ class PracticalGridObject {
   String? agebyday;
   String? gas;
   String? gasprice;
-  PracticalGridObject({this.practicalirrigationrecordId, this.farmcropId, this.date,
-    this.stage, this.dischargehours, this.irrtotal, this.agebyday, this.gas, this.gasprice});
+  PracticalGridObject(
+      {this.practicalirrigationrecordId,
+      this.farmcropId,
+      this.date,
+      this.stage,
+      this.dischargehours,
+      this.irrtotal,
+      this.agebyday,
+      this.gas,
+      this.gasprice});
 
   factory PracticalGridObject.fromJson(Map<String, dynamic> json) {
     return PracticalGridObject(
-      practicalirrigationrecordId: json['practicalirrigationrecordId'].toString(),
+      practicalirrigationrecordId:
+          json['practicalirrigationrecordId'].toString(),
       farmcropId: json['farmcropId'].toString().trim(),
       date: DateTime.fromMillisecondsSinceEpoch(
-          int.tryParse(json['date'].substring(6,19)) ?? 0
-      ),
+          int.tryParse(json['date'].substring(6, 19)) ?? 0),
       stage: json['stage'].toString().trim(),
       dischargehours: json['dischargehours'].toString().trim(),
       irrtotal: json['irrtotal'].toString().trim(),
@@ -2047,14 +2875,17 @@ class PracticalGridObject {
     );
   }
 }
+
 /////////////////////////////  IdeallGrid  /////////////////////////
 List<IdealGridObject> parseIdealGrid(String responseBody) {
-  var temp  = jsonDecode(responseBody);
-  var temp2  = temp['Data'];
-  var temp3  = jsonEncode(temp2);
+  var temp = jsonDecode(responseBody);
+  var temp2 = temp['Data'];
+  var temp3 = jsonEncode(temp2);
   final parsed = jsonDecode(temp3).cast<Map<String, dynamic>>();
 
-  return parsed.map<IdealGridObject>((json) => IdealGridObject.fromJson(json)).toList();
+  return parsed
+      .map<IdealGridObject>((json) => IdealGridObject.fromJson(json))
+      .toList();
 }
 
 class IdealGridObject {
@@ -2067,16 +2898,24 @@ class IdealGridObject {
   String? agebyday;
   String? gas;
   String? gasprice;
-  IdealGridObject({this.practicalirrigationrecordId, this.farmcropId, this.date,
-    this.stage, this.dischargehours, this.irrtotal, this.agebyday, this.gas, this.gasprice});
+  IdealGridObject(
+      {this.practicalirrigationrecordId,
+      this.farmcropId,
+      this.date,
+      this.stage,
+      this.dischargehours,
+      this.irrtotal,
+      this.agebyday,
+      this.gas,
+      this.gasprice});
 
   factory IdealGridObject.fromJson(Map<String, dynamic> json) {
     return IdealGridObject(
-      practicalirrigationrecordId: json['practicalirrigationrecordId'].toString(),
+      practicalirrigationrecordId:
+          json['practicalirrigationrecordId'].toString(),
       farmcropId: json['farmcropId'].toString().trim(),
       date: DateTime.fromMillisecondsSinceEpoch(
-          int.tryParse(json['date'].substring(6,19)) ?? 0
-      ),
+          int.tryParse(json['date'].substring(6, 19)) ?? 0),
       stage: json['stage'].toString().trim(),
       dischargehours: json['dischargehours'].toString().trim(),
       irrtotal: json['irrtotal'].toString().trim(),
@@ -2088,13 +2927,17 @@ class IdealGridObject {
 }
 
  //////////////////////////////// PARSE PREVIOUSDailyRecords ///////////////////////////////////
-List<PREVIOUSDailyRecordsObject> parsePREVIOUSDailyRecords(String responseBody) {
-  var temp  = jsonDecode(responseBody);
-  var temp2  = temp['Data'];
-  var temp3  = jsonEncode(temp2);
+List<PREVIOUSDailyRecordsObject> parsePREVIOUSDailyRecords(
+    String responseBody) {
+  var temp = jsonDecode(responseBody);
+  var temp2 = temp['Data'];
+  var temp3 = jsonEncode(temp2);
   final parsed = jsonDecode(temp3).cast<Map<String, dynamic>>();
 
-  return parsed.map<PREVIOUSDailyRecordsObject>((json) => PREVIOUSDailyRecordsObject.fromJson(json)).toList();
+  return parsed
+      .map<PREVIOUSDailyRecordsObject>(
+          (json) => PREVIOUSDailyRecordsObject.fromJson(json))
+      .toList();
 }
 
 class PREVIOUSDailyRecordsObject {
@@ -2109,16 +2952,25 @@ class PREVIOUSDailyRecordsObject {
   String? irrday;
   String? agebyday;
   String? daystillharvest;
-  PREVIOUSDailyRecordsObject({this.dailyrecordId, this.farmcropId, this.date,
-    this.stage, this.eto, this.etc, this.pe, this.kc, this.irrday, this.agebyday, this.daystillharvest});
+  PREVIOUSDailyRecordsObject(
+      {this.dailyrecordId,
+      this.farmcropId,
+      this.date,
+      this.stage,
+      this.eto,
+      this.etc,
+      this.pe,
+      this.kc,
+      this.irrday,
+      this.agebyday,
+      this.daystillharvest});
 
   factory PREVIOUSDailyRecordsObject.fromJson(Map<String, dynamic> json) {
     return PREVIOUSDailyRecordsObject(
       dailyrecordId: json['dailyrecordId'].toString(),
       farmcropId: json['farmcropId'].toString().trim(),
       date: DateTime.fromMillisecondsSinceEpoch(
-          int.tryParse(json['date'].substring(6,19)) ?? 0
-      ),
+          int.tryParse(json['date'].substring(6, 19)) ?? 0),
       stage: json['stage'].toString().trim(),
       eto: json['eto'].toString().trim(),
       etc: json['etc'].toString().trim(),
@@ -2130,14 +2982,19 @@ class PREVIOUSDailyRecordsObject {
     );
   }
 }
+
 /////////////////////////////  PREVIOUSPracticalGrid  /////////////////////////
-List<PREVIOUSPracticalGridObject> parsePREVIOUSPracticalGrid(String responseBody) {
-  var temp  = jsonDecode(responseBody);
-  var temp2  = temp['Data'];
-  var temp3  = jsonEncode(temp2);
+List<PREVIOUSPracticalGridObject> parsePREVIOUSPracticalGrid(
+    String responseBody) {
+  var temp = jsonDecode(responseBody);
+  var temp2 = temp['Data'];
+  var temp3 = jsonEncode(temp2);
   final parsed = jsonDecode(temp3).cast<Map<String, dynamic>>();
 
-  return parsed.map<PREVIOUSPracticalGridObject>((json) => PREVIOUSPracticalGridObject.fromJson(json)).toList();
+  return parsed
+      .map<PREVIOUSPracticalGridObject>(
+          (json) => PREVIOUSPracticalGridObject.fromJson(json))
+      .toList();
 }
 
 class PREVIOUSPracticalGridObject {
@@ -2150,17 +3007,24 @@ class PREVIOUSPracticalGridObject {
   String? agebyday;
   String? gas;
   String? gasprice;
-  PREVIOUSPracticalGridObject({this.practicalirrigationrecordId, this.farmcropId, this.date,
-    this.stage, this.dischargehours, this.irrtotal, this.agebyday, this.gas, this.gasprice});
+  PREVIOUSPracticalGridObject(
+      {this.practicalirrigationrecordId,
+      this.farmcropId,
+      this.date,
+      this.stage,
+      this.dischargehours,
+      this.irrtotal,
+      this.agebyday,
+      this.gas,
+      this.gasprice});
 
   factory PREVIOUSPracticalGridObject.fromJson(Map<String, dynamic> json) {
     return PREVIOUSPracticalGridObject(
-      practicalirrigationrecordId: json['practicalirrigationrecordId'].toString(),
+      practicalirrigationrecordId:
+          json['practicalirrigationrecordId'].toString(),
       farmcropId: json['farmcropId'].toString().trim(),
       date: DateTime.fromMillisecondsSinceEpoch(
-          int.tryParse(json['date'].substring(6,19)) ?? 0
-      ),
-
+          int.tryParse(json['date'].substring(6, 19)) ?? 0),
       stage: json['stage'].toString().trim(),
       dischargehours: json['dischargehours'].toString().trim(),
       irrtotal: json['irrtotal'].toString().trim(),
@@ -2170,14 +3034,18 @@ class PREVIOUSPracticalGridObject {
     );
   }
 }
+
 /////////////////////////////  IdeallGrid  /////////////////////////
 List<PREVIOUSIdealGridObject> parsePREVIOUSIdealGrid(String responseBody) {
-  var temp  = jsonDecode(responseBody);
-  var temp2  = temp['Data'];
-  var temp3  = jsonEncode(temp2);
+  var temp = jsonDecode(responseBody);
+  var temp2 = temp['Data'];
+  var temp3 = jsonEncode(temp2);
   final parsed = jsonDecode(temp3).cast<Map<String, dynamic>>();
 
-  return parsed.map<PREVIOUSIdealGridObject>((json) => PREVIOUSIdealGridObject.fromJson(json)).toList();
+  return parsed
+      .map<PREVIOUSIdealGridObject>(
+          (json) => PREVIOUSIdealGridObject.fromJson(json))
+      .toList();
 }
 
 class PREVIOUSIdealGridObject {
@@ -2190,17 +3058,24 @@ class PREVIOUSIdealGridObject {
   String? agebyday;
   String? gas;
   String? gasprice;
-  PREVIOUSIdealGridObject({this.practicalirrigationrecordId, this.farmcropId, this.date,
-    this.stage, this.dischargehours, this.irrtotal, this.agebyday, this.gas, this.gasprice});
+  PREVIOUSIdealGridObject(
+      {this.practicalirrigationrecordId,
+      this.farmcropId,
+      this.date,
+      this.stage,
+      this.dischargehours,
+      this.irrtotal,
+      this.agebyday,
+      this.gas,
+      this.gasprice});
 
   factory PREVIOUSIdealGridObject.fromJson(Map<String, dynamic> json) {
     return PREVIOUSIdealGridObject(
-      practicalirrigationrecordId: json['practicalirrigationrecordId'].toString(),
+      practicalirrigationrecordId:
+          json['practicalirrigationrecordId'].toString(),
       farmcropId: json['farmcropId'].toString().trim(),
       date: DateTime.fromMillisecondsSinceEpoch(
-          int.tryParse(json['date'].substring(6,19)) ?? 0
-      ),
-
+          int.tryParse(json['date'].substring(6, 19)) ?? 0),
       stage: json['stage'].toString().trim(),
       dischargehours: json['dischargehours'].toString().trim(),
       irrtotal: json['irrtotal'].toString().trim(),
@@ -2215,13 +3090,18 @@ class PREVIOUSIdealGridObject {
 List<FarmcropFilterObject> parseFarmcropFilter(String responseBody) {
   final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
 
-  return parsed.map<FarmcropFilterObject>((json) => FarmcropFilterObject.fromJson(json)).toList();
+  return parsed
+      .map<FarmcropFilterObject>((json) => FarmcropFilterObject.fromJson(json))
+      .toList();
 }
 
 class FarmcropFilterObject {
   String? farmcropId;
   String? Text;
-  FarmcropFilterObject({this.farmcropId, this.Text,});
+  FarmcropFilterObject({
+    this.farmcropId,
+    this.Text,
+  });
 
   factory FarmcropFilterObject.fromJson(Map<String, dynamic> json) {
     return FarmcropFilterObject(
@@ -2230,17 +3110,25 @@ class FarmcropFilterObject {
     );
   }
 }
+
 /////////////////////////////  PREVIOUSFarmcropFilter  /////////////////////////
-List<PREVIOUSFarmcropFilterObject> parsePREVIOUSFarmcropFilter(String responseBody) {
+List<PREVIOUSFarmcropFilterObject> parsePREVIOUSFarmcropFilter(
+    String responseBody) {
   final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
 
-  return parsed.map<PREVIOUSFarmcropFilterObject>((json) => PREVIOUSFarmcropFilterObject.fromJson(json)).toList();
+  return parsed
+      .map<PREVIOUSFarmcropFilterObject>(
+          (json) => PREVIOUSFarmcropFilterObject.fromJson(json))
+      .toList();
 }
 
 class PREVIOUSFarmcropFilterObject {
   String? farmcropId;
   String? Text;
-  PREVIOUSFarmcropFilterObject({this.farmcropId, this.Text,});
+  PREVIOUSFarmcropFilterObject({
+    this.farmcropId,
+    this.Text,
+  });
 
   factory PREVIOUSFarmcropFilterObject.fromJson(Map<String, dynamic> json) {
     return PREVIOUSFarmcropFilterObject(
@@ -2252,17 +3140,17 @@ class PREVIOUSFarmcropFilterObject {
 
 /////////////// DIALOGS ////////////////////////
 class MyConfirmDateDialog extends StatefulWidget {
-  BuildContext mainContext;
+  final BuildContext mainContext;
+  final int farmcropId;
+  final int farmid;
+  final DateTime lastIrrigationDate;
 
-  int farmcropId;
-
-  int farmid;
-  DateTime lastIrrigationDate;
-
-  MyConfirmDateDialog(this.mainContext,  this.farmcropId, this.farmid, this.lastIrrigationDate);
+  MyConfirmDateDialog(
+      this.mainContext, this.farmcropId, this.farmid, this.lastIrrigationDate);
 
   @override
-  _confirmDateState createState() => new _confirmDateState(mainContext,farmcropId,farmid, lastIrrigationDate);
+  _confirmDateState createState() => new _confirmDateState(
+      mainContext, farmcropId, farmid, lastIrrigationDate);
 }
 
 class _confirmDateState extends State<MyConfirmDateDialog> {
@@ -2275,7 +3163,8 @@ class _confirmDateState extends State<MyConfirmDateDialog> {
 
   int farmid;
 
-  _confirmDateState( this.mainContext, this.farmcropId, this.farmid, this.confirmDate);
+  _confirmDateState(
+      this.mainContext, this.farmcropId, this.farmid, this.confirmDate);
   // set up the buttons
   @override
   Widget build(BuildContext context) {
@@ -2292,17 +3181,20 @@ class _confirmDateState extends State<MyConfirmDateDialog> {
       onPressed: () {
         if (confirmDate != null) {
           Navigator.of(context).pop();
-          showIrrigateDialog(mainContext, farmcropId, formatter.format(confirmDate!), farmid);
+          showIrrigateDialog(
+              mainContext, farmcropId, formatter.format(confirmDate!), farmid);
         }
       },
     );
 
     return AlertDialog(
-      title: Text("من فضلك قم بتأكيد اخر موعد للري", textAlign: TextAlign.center,),
+      title: Text(
+        "من فضلك قم بتأكيد اخر موعد للري",
+        textAlign: TextAlign.center,
+      ),
       content: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-
           Container(
             margin: EdgeInsets.fromLTRB(10, 0, 0, 0),
             child: ElevatedButton(
@@ -2324,41 +3216,45 @@ class _confirmDateState extends State<MyConfirmDateDialog> {
                 });
               },
             ),
-
           ),
           GestureDetector(
-            onTap: (){
+            onTap: () {
               showDatePicker(
                   context: context,
-                  initialDate: confirmDate == null ? DateTime.now() : confirmDate,
+                      initialDate:
+                          confirmDate == null ? DateTime.now() : confirmDate,
                   firstDate: DateTime.now().add(Duration(days: -200)),
-                  lastDate: DateTime.now()).then((value){
+                      lastDate: DateTime.now())
+                  .then((value) {
                 setState(() {
                   confirmDate = value;
                 });
               });
             },
-            child: Text(confirmDate == null? "اختر التاريخ":formatter.format(confirmDate!), style: TextStyle(decoration: TextDecoration.underline),textAlign: TextAlign.center,),
+            child: Text(
+              confirmDate == null
+                  ? "اختر التاريخ"
+                  : formatter.format(confirmDate!),
+              style: TextStyle(decoration: TextDecoration.underline),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),
-      actions: [
-        cancelButton,
-        submitButton
-      ],
+      actions: [cancelButton, submitButton],
     );
   }
 
-
-  showIrrigateDialog(BuildContext context, int myfarmcropid,String updatelastirrigationdate,int farmid) {
+  showIrrigateDialog(BuildContext context, int myfarmcropid,
+      String updatelastirrigationdate, int farmid) {
     showDialog(
         context: context,
         builder: (BuildContext context) {
-          return MyIrrigateDialog(myfarmcropid, updatelastirrigationdate,farmid);
-        },barrierDismissible: false
-    );
+          return MyIrrigateDialog(
+              myfarmcropid, updatelastirrigationdate, farmid);
+        },
+        barrierDismissible: true);
   }
-
 }
 
 class AreYouSureDialog extends StatefulWidget {
@@ -2369,10 +3265,11 @@ class AreYouSureDialog extends StatefulWidget {
   int? farmid;
   DateTime? lastIrrigationDate;
 
-  AreYouSureDialog(this.farmcropId,this.farmid );
+  AreYouSureDialog(this.farmcropId, this.farmid);
 
   @override
-  _AreYouSureDialogState createState() => new _AreYouSureDialogState(farmcropId!,this.farmid!);
+  _AreYouSureDialogState createState() =>
+      new _AreYouSureDialogState(farmcropId!, this.farmid!);
 }
 
 class _AreYouSureDialogState extends State<AreYouSureDialog> {
@@ -2386,7 +3283,7 @@ class _AreYouSureDialogState extends State<AreYouSureDialog> {
 
   int farmid;
 
-  _AreYouSureDialogState( this.farmcropId, this.farmid);
+  _AreYouSureDialogState(this.farmcropId, this.farmid);
   // set up the buttons
   @override
   Widget build(BuildContext context) {
@@ -2404,53 +3301,100 @@ class _AreYouSureDialogState extends State<AreYouSureDialog> {
         setState(() {
           deleting = true;
         });
+        
+        try {
+          String result = await deleteFarmCropASYNC(farmcropId.toString());
+          
+          if (result == 'success') {
+            Fluttertoast.showToast(
+              msg: "تم حذف المحصول بنجاح",
+              toastLength: Toast.LENGTH_LONG,
+              gravity: ToastGravity.CENTER,
+              timeInSecForIosWeb: 1,
+              backgroundColor: Colors.green,
+              textColor: Colors.white,
+              fontSize: 16.0,
+            );
+            
+            // Close the dialog and navigate back to farm crops
+            Navigator.of(context).pop();
+            Navigator.of(context).pushReplacement(goToFarmCrops(farmid));
+          } else {
+            Fluttertoast.showToast(
+              msg: "فشل حذف المحصول: $result",
+              toastLength: Toast.LENGTH_LONG,
+              gravity: ToastGravity.CENTER,
+              timeInSecForIosWeb: 1,
+              backgroundColor: Colors.red,
+              textColor: Colors.white,
+              fontSize: 16.0,
+            );
+            
+            setState(() {
+              deleting = false;
+            });
+          }
+        } catch (e) {
+          Fluttertoast.showToast(
+            msg: "حدث خطأ أثناء حذف المحصول: $e",
+            toastLength: Toast.LENGTH_LONG,
+            gravity: ToastGravity.CENTER,
+            timeInSecForIosWeb: 1,
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+            fontSize: 16.0,
+          );
+          
+          setState(() {
+            deleting = false;
+          });
+        }
       },
     );
 
     return AlertDialog(
       title: Text("مسح المحصول"),
-      content: deleting ? Center(child: CircularProgressIndicator()) :Text("هل تريد مسح المحصول؟"),
-      actions: deleting ? [] : [
+      content: deleting
+          ? Center(child: CircularProgressIndicator())
+          : Text("هل تريد مسح المحصول؟"),
+      actions: deleting
+          ? []
+          : [
         cancelButton,
         continueButton,
       ],
     );
   }
 
-
-  showIrrigateDialog(BuildContext context, int myfarmcropid,String updatelastirrigationdate,int farmid) {
+  showIrrigateDialog(BuildContext context, int myfarmcropid,
+      String updatelastirrigationdate, int farmid) {
     showDialog(
         context: context,
         builder: (BuildContext context) {
-          return MyIrrigateDialog(myfarmcropid, updatelastirrigationdate,farmid);
-        },barrierDismissible: false
-    );
+          return MyIrrigateDialog(
+              myfarmcropid, updatelastirrigationdate, farmid);
+        },
+        barrierDismissible: true);
   }
-
 }
 
 class MyIrrigateDialog extends StatefulWidget {
-  String updatelastirrigationdate;
+  final String updatelastirrigationdate;
+  final int myfarmcropid;
+  final int farmid;
 
-  int myfarmcropid;
-
-  int farmid;
-
-  MyIrrigateDialog(this.myfarmcropid, this.updatelastirrigationdate, this.farmid);
+  MyIrrigateDialog(
+      this.myfarmcropid, this.updatelastirrigationdate, this.farmid);
 
   @override
-  _IrrigateState createState() => new _IrrigateState(myfarmcropid, updatelastirrigationdate,farmid);
+  _IrrigateState createState() =>
+      new _IrrigateState(myfarmcropid, updatelastirrigationdate, farmid);
 }
 
 class _IrrigateState extends State<MyIrrigateDialog> {
-  Map<String, dynamic>? fetchedJson = null;
   final DateFormat formatter = DateFormat('yyyy/MM/dd');
-  String? hrsString = null;
-  bool? loading = true;
-  String? errmsg = null;
   String updatelastirrigationdate;
   int myfarmcropid;
-
   int farmid;
 
   _IrrigateState(this.myfarmcropid, this.updatelastirrigationdate, this.farmid);
@@ -2469,10 +3413,6 @@ class _IrrigateState extends State<MyIrrigateDialog> {
     Widget submitButton = TextButton(
       child: Text("نعم"),
       onPressed: () async {
-        setState(() {
-          loading = true;
-        });
-
         String irrigateman = await userIrrigated(http.Client(), myfarmcropid);
 
         if (irrigateman == 'success') {
@@ -2512,89 +3452,205 @@ class _IrrigateState extends State<MyIrrigateDialog> {
     );
 
     return AlertDialog(
-      //title: Text("من فضلك قم بتأكيد اخر موعد للري", textAlign: TextAlign.center,),
-      content: FutureBuilder<String>(
-        future: fetchIrrigation(http.Client(),myfarmcropid, updatelastirrigationdate),
-        builder: (context, snapshot) {
-          if (snapshot.hasError)
-            Navigator.of(context).pushReplacement(goToLogin());
-          if(snapshot.hasData && loading! && errmsg == null && fetchedJson == null){
-            if(snapshot.data == 'wrong date'){
-              errmsg = 'التاريخ لا يمكن ان يسبق تاريخ الزراعة';
-            } else if(snapshot.data == 'wrong id'){
-              errmsg = 'لا يوجد هذا المحصول';
-            } else if(snapshot.data == 'wrong user'){
-              errmsg = 'اعد تسجيل الدخول';
-            }else{
-              fetchedJson = jsonDecode(snapshot.data!);
-              String hrs = fetchedJson!['dischargehours'].toString();
-              double hrsToDecimal = (double.tryParse(hrs) ?? 0).toStringAsFixed(2) as double;
-
-              int hoursOnly = hrsToDecimal.floor();
-              int minits = ((hrsToDecimal - hoursOnly) * 60).round();
-              String hrsAndMinStr = '';
-              if (hoursOnly != 0) {
-                hrsAndMinStr +=  hoursOnly.toString() + ' ساعة ';
-              }
-              if (hoursOnly != 0 && minits != 0) { hrsAndMinStr += " و "; }
-              if (minits != 0) {
-                hrsAndMinStr +=  minits.toString() + ' دقائق ';
-              }
-              hrsString = hrsAndMinStr;
+      title: Text("احتياجات الري", textAlign: TextAlign.center),
+      content: Container(
+        width: double.maxFinite,
+        child: FutureBuilder<String>(
+          future: fetchIrrigation(
+              http.Client(), myfarmcropid, updatelastirrigationdate),
+          builder: (context, snapshot) {
+            // Show loading indicator while waiting
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                height: 200,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('جاري تحميل بيانات الري...', 
+                           style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ),
+              );
             }
-            SchedulerBinding.instance
-                .addPostFrameCallback((_) => setState(() {
-              loading = false;
-            }));
-          }
-          return snapshot.hasData && !loading!
-              ? (fetchedJson == null? Text(errmsg!) :
-          Container(
-            height: 350,
-            child: Scrollbar(
-              child: ListView(
-                children: [
-                  Text('اجمالي المياه المطلوبة للري',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
-                  Text(fetchedJson!['irrtotal'].toString()+ ' متر مكعب ',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold,color: Colors.green),textAlign: TextAlign.center,),
-                  Text('عدد ساعات تشغيل الطلمبة',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
-                  Text(hrsString!,style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold,color: Colors.green),textAlign: TextAlign.center,),
-                  Text('استهلاك الوقود',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
-                  Text(fetchedJson!['gas'].toString()+ ' لتر ',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold,color: Colors.green),textAlign: TextAlign.center,),
-                  Text('سعر الوقود المستهلك',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
-                  Text(fetchedJson!['gasprice'].toString()+ ' جنيه ',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold,color: Colors.green),textAlign: TextAlign.center,),
-                  Text('هل ستروي اليوم؟',style: TextStyle(fontSize: 24,fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
-                ],
+            
+            // Handle errors
+            if (snapshot.hasError) {
+              return Container(
+                height: 200,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error, color: Colors.red, size: 48),
+                      SizedBox(height: 16),
+                      Text('خطأ في تحميل البيانات', 
+                           style: TextStyle(fontSize: 16, color: Colors.red)),
+                    ],
+                  ),
+                ),
+              );
+            }
+            
+            // Handle data
+            if (snapshot.hasData) {
+              String data = snapshot.data!;
+              
+              if (data == 'wrong date') {
+                return Container(
+                  height: 200,
+                  child: Center(
+                    child: Text('التاريخ لا يمكن ان يسبق تاريخ الزراعة', 
+                               style: TextStyle(fontSize: 16, color: Colors.red),
+                               textAlign: TextAlign.center),
+                  ),
+                );
+              } else if (data == 'wrong id') {
+                return Container(
+                  height: 200,
+                  child: Center(
+                    child: Text('لا يوجد هذا المحصول', 
+                               style: TextStyle(fontSize: 16, color: Colors.red),
+                               textAlign: TextAlign.center),
+                  ),
+                );
+              } else if (data == 'wrong user') {
+                return Container(
+                  height: 200,
+                  child: Center(
+                    child: Text('اعد تسجيل الدخول', 
+                               style: TextStyle(fontSize: 16, color: Colors.red),
+                               textAlign: TextAlign.center),
+                  ),
+                );
+              } else {
+                // Parse and display the data
+                try {
+                  Map<String, dynamic> jsonData = jsonDecode(data);
+                  String hrs = jsonData['dischargehours'].toString();
+                  double hrsToDecimal = double.tryParse(hrs) ?? 0;
+
+                  int hoursOnly = hrsToDecimal.floor();
+                  int minits = ((hrsToDecimal - hoursOnly) * 60).round();
+                  String hrsAndMinStr = '';
+                  if (hoursOnly != 0) {
+                    hrsAndMinStr += hoursOnly.toString() + ' ساعة ';
+                  }
+                  if (hoursOnly != 0 && minits != 0) {
+                    hrsAndMinStr += " و ";
+                  }
+                  if (minits != 0) {
+                    hrsAndMinStr += minits.toString() + ' دقائق ';
+                  }
+                  
+                  return Container(
+                    height: 350,
+                    child: Scrollbar(
+                      child: ListView(
+                        children: [
+                          Text(
+                            'اجمالي المياه المطلوبة للري',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            jsonData['irrtotal'].toString() + ' متر مكعب ',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'عدد ساعات تشغيل الطلمبة',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            hrsAndMinStr,
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'استهلاك الوقود',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            jsonData['gas'].toString() + ' لتر ',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'سعر الوقود المستهلك',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            jsonData['gasprice'].toString() + ' جنيه ',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'هل ستروي اليوم؟',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  return Container(
+                    height: 200,
+                    child: Center(
+                      child: Text('خطأ في تحليل البيانات', 
+                                 style: TextStyle(fontSize: 16, color: Colors.red),
+                                 textAlign: TextAlign.center),
+                    ),
+                  );
+                }
+              }
+            }
+            
+            // Default fallback
+            return Container(
+              height: 200,
+              child: Center(
+                child: Text('لا توجد بيانات', 
+                           style: TextStyle(fontSize: 16),
+                           textAlign: TextAlign.center),
               ),
-            ),
-          ) )
-              : Center(child: CircularProgressIndicator());
-        },
+            );
+          },
+        ),
       ),
-      actions: loading!?[]:fetchedJson == null? [errorButton]:[
-        cancelButton,
-        submitButton
-      ],
+      actions: [cancelButton, submitButton],
     );
   }
 }
 
-
 class AddFarmCropDialog extends StatefulWidget {
-  List<cropObject> cropTypes;
-  List<MeasringObject> measures;
-  List<irrigationMethodObject> irrigationMethods;
-
-  /*String updatelastirrigationdate;
-
-  int myfarmcropid;
-*/
-  int farmid;
+  final List<cropObject> cropTypes;
+  final List<MeasringObject> measures;
+  final List<irrigationMethodObject> irrigationMethods;
+  final int farmid;
 
   //AddFarmCropDialog(this.myfarmcropid, this.updatelastirrigationdate, this.farmid);
-  AddFarmCropDialog(this.cropTypes,this.irrigationMethods,this.measures, this.farmid);
+  AddFarmCropDialog(
+      this.cropTypes, this.irrigationMethods, this.measures, this.farmid);
 
   @override
-  _AddFarmCropState createState() => new _AddFarmCropState(this.cropTypes,this.irrigationMethods,this.measures, this.farmid);
+  _AddFarmCropState createState() => new _AddFarmCropState(
+      this.cropTypes, this.irrigationMethods, this.measures, this.farmid);
 }
 
 class _AddFarmCropState extends State<AddFarmCropDialog> {
@@ -2619,14 +3675,16 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
   String? mashtal;
   String? shara2y;
   TextEditingController plantingDateController = new TextEditingController();
-  TextEditingController lastIrrigationDateController = new TextEditingController();
+  TextEditingController lastIrrigationDateController =
+      new TextEditingController();
   DateTime? plantingDate = null;
   DateTime? lastIrrigationDate = null;
   GlobalKey<FormState> formkey = GlobalKey<FormState>();
 
   int farmid;
 
-  _AddFarmCropState(this.allcroptypes,this.irrigationMethods,this.measuringUnits, this.farmid);
+  _AddFarmCropState(this.allcroptypes, this.irrigationMethods,
+      this.measuringUnits, this.farmid);
   // set up the buttons
   @override
   Widget build(BuildContext context) {
@@ -2641,38 +3699,111 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
     Widget submitButton = TextButton(
       child: Text("أضف"),
       onPressed: () async {
-        if (!formkey.currentState!.validate()) { // Ensure form validation
+        if (!formkey.currentState!.validate()) {
+          // Ensure form validation
           return;
         }
+
         setState(() {
           loading = true;
           formkey.currentState!.save();
         });
 
+        try {
+          apiLog('=== SUBMITTING ADD FARMCROP ===');
+          apiLog(
+              'Crop Type: ${croptypeobject?.name} (ID: ${croptypeobject?.cropId})');
+          apiLog('Farm ID: $farmid');
+          apiLog(
+              'Irrigation Method: ${irrigationMethod?.name} (ID: ${irrigationMethod?.irrigationmethodId})');
+          apiLog('Initial Irrigation Hours: $initialIrrigationHours');
+          apiLog('Mashtal: $mashtal');
+          apiLog('Shara2y: $shara2y');
+          apiLog(
+              'Measuring Unit: ${measuringunit?.name} (ID: ${measuringunit?.measuringunitId})');
+          apiLog('Area: $area');
+          apiLog(
+              'Planting Date: ${plantingDate != null ? formatter.format(plantingDate!) : 'NULL'}');
+          apiLog(
+              'Last Irrigation Date: ${lastIrrigationDate != null ? formatter.format(lastIrrigationDate!) : 'NULL'}');
+          apiLog('================================');
+
         String result = await addFarmCropASYNC(
           croptypeobject!.cropId!,
           farmid.toString(),
           irrigationMethod!.irrigationmethodId!,
-          initialIrrigationHours.toString(),
-          mashtal.toString(),
-          shara2y!,
+            initialIrrigationHours ?? '0',
+            mashtal ?? '0',
+            shara2y ?? '0',
           measuringunit!.measuringunitId!,
           area!,
           formatter.format(plantingDate!),
           formatter.format(lastIrrigationDate!),
         );
 
+          apiLog('=== ADD FARMCROP RESULT ===');
+          apiLog('Result: $result');
+          apiLog('==========================');
+
+          // Show appropriate message based on result
+          String message;
+          Color backgroundColor;
+
+          if (result == 'success') {
+            message = "تم اضافة المحصول بنجاح";
+            backgroundColor = Colors.green;
+          } else if (result.contains('يرجى إعادة تسجيل الدخول')) {
+            message = "انتهت صلاحية الجلسة، يرجى إعادة تسجيل الدخول";
+            backgroundColor = Colors.orange;
+          } else if (result.contains('انتهت مهلة الاتصال')) {
+            message = "انتهت مهلة الاتصال، يرجى المحاولة مرة أخرى";
+            backgroundColor = Colors.orange;
+          } else if (result.contains('خطأ في الاتصال')) {
+            message = "خطأ في الاتصال بالخادم، تحقق من اتصال الإنترنت";
+            backgroundColor = Colors.red;
+          } else {
+            message = "فشل اضافة المحصول: $result";
+            backgroundColor = Colors.red;
+          }
+
         Fluttertoast.showToast(
-          msg: result == 'success' ? "تم اضافة المحصول بنجاح" : "فشل اضافة المحصول: $result",
+            msg: message,
           toastLength: Toast.LENGTH_LONG,
           gravity: ToastGravity.CENTER,
-          backgroundColor: result == 'success' ? Colors.green : Colors.red,
+            backgroundColor: backgroundColor,
           textColor: Colors.white,
           fontSize: 16.0,
         );
 
+          // Only navigate if successful
+          if (result == 'success') {
         Navigator.of(context).pop();
         Navigator.of(context).pushReplacement(goToFarmCrops(farmid));
+          } else {
+            // Reset loading state on error
+            setState(() {
+              loading = false;
+            });
+          }
+        } catch (e) {
+          apiLog('=== ADD FARMCROP DIALOG ERROR ===');
+          apiLog('Error: $e');
+          apiLog('Error type: ${e.runtimeType}');
+          apiLog('===============================');
+
+          Fluttertoast.showToast(
+            msg: "حدث خطأ غير متوقع: $e",
+            toastLength: Toast.LENGTH_LONG,
+            gravity: ToastGravity.CENTER,
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+            fontSize: 16.0,
+          );
+
+          setState(() {
+            loading = false;
+          });
+        }
       },
     );
     return AlertDialog(
@@ -2689,33 +3820,36 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
             key: formkey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children:  [
+                    children: [
               Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
+                              backgroundColor: Colors
+                                  .teal, // Use `backgroundColor` instead of `color`
                     padding: EdgeInsets.all(0),
                   ),
-                  child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+                            child: FaIcon(FontAwesomeIcons.calendar,
+                                color: Colors.white),
                   onPressed: () {
                     showDatePicker(
                       context: context,
                       initialDate: plantingDate ?? DateTime.now(),
-                      firstDate: DateTime.now().subtract(Duration(days: 200)),
+                                firstDate: DateTime.now()
+                                    .subtract(Duration(days: 200)),
                       lastDate: DateTime.now(),
                     ).then((value) {
                       if (value != null) {
                         setState(() {
                           plantingDate = value;
-                          plantingDateController.text = formatter.format(value);
+                                    plantingDateController.text =
+                                        formatter.format(value);
                         });
                       }
                     });
                   },
                 ),
-
                 SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -2727,26 +3861,34 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                         cursorColor: Color(0xff26a69a),
                         //enabled: false,
                         readOnly: true,
-                        decoration: InputDecoration(labelText: 'تاريخ الزراعة',focusColor: Color(0xff26a69a)),
-                        validator: (String? value){
-                          if(value!.isEmpty){
+                                  decoration: InputDecoration(
+                                      labelText: 'تاريخ الزراعة',
+                                      focusColor: Color(0xff26a69a)),
+                                  validator: (String? value) {
+                                    if (value == null || value.isEmpty) {
                             return "برجاء ادخال تاريخ الزراعة";
                           }
+                                    return null;
                         },
                         onTap: () {
                           showDatePicker(
                               context: context,
-                              initialDate: plantingDate == null ? DateTime.now() : plantingDate,
-                              firstDate: DateTime.now().add(Duration(days: -200)),
-                              lastDate: DateTime.now()).then((value){
+                                            initialDate: plantingDate == null
+                                                ? DateTime.now()
+                                                : plantingDate,
+                                            firstDate: DateTime.now()
+                                                .add(Duration(days: -200)),
+                                            lastDate: DateTime.now())
+                                        .then((value) {
                             setState(() {
                               plantingDate = value;
-                              plantingDateController.text = formatter.format(value!);
+                                        plantingDateController.text =
+                                            formatter.format(value!);
                               //mydate = formatter.format(value);
                             });
                           });
                         },
-                        onSaved: (String? value){
+                                  onSaved: (String? value) {
                           //farmname = value;
                         },
                       ),
@@ -2760,27 +3902,31 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                 children: [
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal, // Use `backgroundColor` instead of `color`
+                              backgroundColor: Colors
+                                  .teal, // Use `backgroundColor` instead of `color`
                       padding: EdgeInsets.all(0),
                     ),
-                    child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+                            child: FaIcon(FontAwesomeIcons.calendar,
+                                color: Colors.white),
                     onPressed: () {
                       showDatePicker(
                         context: context,
-                        initialDate: lastIrrigationDate ?? DateTime.now(),
-                        firstDate: DateTime.now().subtract(Duration(days: 200)),
+                                initialDate:
+                                    lastIrrigationDate ?? DateTime.now(),
+                                firstDate: DateTime.now()
+                                    .subtract(Duration(days: 200)),
                         lastDate: DateTime.now(),
                       ).then((value) {
                         if (value != null) {
                           setState(() {
                             lastIrrigationDate = value;
-                            lastIrrigationDateController.text = formatter.format(value);
+                                    lastIrrigationDateController.text =
+                                        formatter.format(value);
                           });
                         }
                       });
                     },
                   ),
-
                   SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -2792,26 +3938,34 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                           cursorColor: Color(0xff26a69a),
                           //enabled: false,
                           readOnly: true,
-                          decoration: InputDecoration(labelText: 'تاريخ اخر رية',focusColor: Color(0xff26a69a)),
-                          validator: (String? value){
-                            if(value!.isEmpty){
+                                  decoration: InputDecoration(
+                                      labelText: 'تاريخ اخر رية',
+                                      focusColor: Color(0xff26a69a)),
+                                  validator: (String? value) {
+                                    if (value!.isEmpty) {
                               return "برجاء ادخال تاريخ اخر رية";
                             }
                           },
                           onTap: () {
                             showDatePicker(
                                 context: context,
-                                initialDate: lastIrrigationDate == null ? DateTime.now() : lastIrrigationDate,
-                                firstDate: DateTime.now().add(Duration(days: -200)),
-                                lastDate: DateTime.now()).then((value){
+                                            initialDate:
+                                                lastIrrigationDate == null
+                                                    ? DateTime.now()
+                                                    : lastIrrigationDate,
+                                            firstDate: DateTime.now()
+                                                .add(Duration(days: -200)),
+                                            lastDate: DateTime.now())
+                                        .then((value) {
                               setState(() {
                                 lastIrrigationDate = value;
-                                lastIrrigationDateController.text = formatter.format(value!);
+                                        lastIrrigationDateController.text =
+                                            formatter.format(value!);
                                 //mydate = formatter.format(value);
                               });
                             });
                           },
-                          onSaved: (String? value){
+                                  onSaved: (String? value) {
                             //farmname = value;
                           },
                         ),
@@ -2821,12 +3975,13 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                 ],
               ),
               DropdownButtonFormField<cropObject>(
-                validator: (cropObject? value){
-                  if(value == null){
+                        validator: (cropObject? value) {
+                          if (value == null) {
                     return "اختر نوع المحصول";
                   }
+                          return null;
                 },
-                onSaved: (cropObject? value){
+                        onSaved: (cropObject? value) {
                   croptypeobject = value;
                 },
                 isExpanded: true,
@@ -2834,22 +3989,21 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                 icon: Icon(Icons.arrow_drop_down),
                 iconSize: 24,
                 elevation: 16,
-                style: TextStyle(color: Colors.black,fontSize: 18),
+                        style: TextStyle(color: Colors.black, fontSize: 18),
                 onChanged: (cropObject? newValue) {
                   this.croptypeobject = newValue;
-                  if(croptypeobject!.name!.indexOf('رز') >= 0){
+                          if (croptypeobject!.name!.indexOf('رز') >= 0) {
                     rice = true;
-                  }else{
+                          } else {
                     rice = false;
                     shara2y = null;
                     mashtal = null;
                   }
-                  setState(() {
-                  });
+                          setState(() {});
                 },
                 hint: Text('اختر نوع المحصول'),
-                items: allcroptypes
-                    .map<DropdownMenuItem<cropObject>>((cropObject value) {
+                        items: allcroptypes.map<DropdownMenuItem<cropObject>>(
+                            (cropObject value) {
                   return DropdownMenuItem<cropObject>(
                     value: value,
                     child: Text(value.name!),
@@ -2857,12 +4011,12 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                 }).toList(),
               ),
               DropdownButtonFormField<irrigationMethodObject>(
-                validator: (irrigationMethodObject? value){
-                  if(value == null){
+                        validator: (irrigationMethodObject? value) {
+                          if (value == null) {
                     return "اختر نوع الري";
                   }
                 },
-                onSaved: (irrigationMethodObject? value){
+                        onSaved: (irrigationMethodObject? value) {
                   irrigationMethod = value;
                 },
                 isExpanded: true,
@@ -2870,15 +4024,15 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                 icon: Icon(Icons.arrow_drop_down),
                 iconSize: 24,
                 elevation: 16,
-                style: TextStyle(color: Colors.black,fontSize: 18),
+                        style: TextStyle(color: Colors.black, fontSize: 18),
                 onChanged: (irrigationMethodObject? newValue) {
                   this.irrigationMethod = newValue;
-                  setState(() {
-                  });
+                          setState(() {});
                 },
                 hint: Text('اختر نوع الري'),
                 items: irrigationMethods
-                    .map<DropdownMenuItem<irrigationMethodObject>>((irrigationMethodObject value) {
+                            .map<DropdownMenuItem<irrigationMethodObject>>(
+                                (irrigationMethodObject value) {
                   return DropdownMenuItem<irrigationMethodObject>(
                     value: value,
                     child: Text(value.name!),
@@ -2895,17 +4049,23 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                           style: TextStyle(fontFamily: 'OpenSans'),
                           //initialValue: 'a7a ya gedy',
                           cursorColor: Color(0xff26a69a),
-                          decoration: InputDecoration(labelText: 'المساحة المزروعة',focusColor: Color(0xff26a69a)),
-                          validator: (String? value){
-                            if(value!.isEmpty){
+                                  decoration: InputDecoration(
+                                      labelText: 'المساحة المزروعة',
+                                      focusColor: Color(0xff26a69a)),
+                                  validator: (String? value) {
+                                    if (value == null || value.isEmpty) {
                               return "برجاء ادخال المساحة";
                             }
+                                    return null;
                           },
-                          onSaved: (String? value){
+                                  onSaved: (String? value) {
                             area = value;
                           },
-                          inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    DecimalTextInputFormatter(decimalRange: 2)
+                                  ],
+                                  keyboardType: TextInputType.numberWithOptions(
+                                      decimal: true),
                         ),
                       ],
                     ),
@@ -2915,12 +4075,12 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                     child: Column(
                       children: [
                         DropdownButtonFormField<MeasringObject>(
-                          validator: (MeasringObject? value){
-                            if(value == null){
+                                  validator: (MeasringObject? value) {
+                                    if (value == null) {
                               return "اختر الوحدة";
                             }
                           },
-                          onSaved: (MeasringObject? value){
+                                  onSaved: (MeasringObject? value) {
                             measuringunit = value;
                           },
                           isExpanded: true,
@@ -2928,15 +4088,16 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                           icon: Icon(Icons.arrow_drop_down),
                           iconSize: 24,
                           elevation: 16,
-                          style: TextStyle(color: Colors.black,fontSize: 18),
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 18),
                           onChanged: (MeasringObject? newValue) {
                             this.measuringunit = newValue;
-                            setState(() {
-                            });
+                                    setState(() {});
                           },
                           hint: Text('اختر الوحدة'),
                           items: measuringUnits
-                              .map<DropdownMenuItem<MeasringObject>>((MeasringObject value) {
+                                      .map<DropdownMenuItem<MeasringObject>>(
+                                          (MeasringObject value) {
                             return DropdownMenuItem<MeasringObject>(
                               value: value,
                               child: Text(value.name!),
@@ -2952,36 +4113,51 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                 style: TextStyle(fontFamily: 'OpenSans'),
                 //initialValue: 'a7a ya gedy',
                 cursorColor: Color(0xff26a69a),
-                decoration: InputDecoration(labelText: 'عدد ساعات رية الزراعه',focusColor: Color(0xff26a69a)),
-                onSaved: (String? value){
+                        decoration: InputDecoration(
+                            labelText: 'عدد ساعات رية الزراعه',
+                            focusColor: Color(0xff26a69a)),
+                        onSaved: (String? value) {
                   initialIrrigationHours = value;
                 },
-                inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-              ),
-              if(rice)
+                        inputFormatters: [
+                          DecimalTextInputFormatter(decimalRange: 2)
+                        ],
+                        keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      if (rice)
             TextFormField(
         style: TextStyle(fontFamily: 'OpenSans'),
         //initialValue: 'a7a ya gedy',
         cursorColor: Color(0xff26a69a),
-        decoration: InputDecoration(labelText: 'عدد ساعات ري المشتل',focusColor: Color(0xff26a69a)),
-        onSaved: (String? value){
+                          decoration: InputDecoration(
+                              labelText: 'عدد ساعات ري المشتل',
+                              focusColor: Color(0xff26a69a)),
+                          onSaved: (String? value) {
           mashtal = value;
         },
-        inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-        keyboardType: TextInputType.numberWithOptions(decimal: true),
-      ),
-        if(rice)
+                          inputFormatters: [
+                            DecimalTextInputFormatter(decimalRange: 2)
+                          ],
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                        ),
+                      if (rice)
     TextFormField(
       style: TextStyle(fontFamily: 'OpenSans'),
       //initialValue: 'a7a ya gedy',
       cursorColor: Color(0xff26a69a),
-      decoration: InputDecoration(labelText: 'عدد ساعات طفي الشراقي',focusColor: Color(0xff26a69a)),
-      onSaved: (String? value){
+                          decoration: InputDecoration(
+                              labelText: 'عدد ساعات طفي الشراقي',
+                              focusColor: Color(0xff26a69a)),
+                          onSaved: (String? value) {
         shara2y = value;
       },
-      inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            DecimalTextInputFormatter(decimalRange: 2)
+                          ],
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
     ),
     ],
             ),
@@ -2994,13 +4170,86 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
           child: const Text("إلغاء"),
         ),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
+            print('\n=== ADD CROP BUTTON PRESSED ===');
             if (formkey.currentState!.validate()) {
-              // حفظ البيانات هنا
-              Navigator.pop(context);
+              setState(() {
+                loading = true;
+              });
+
+              // Save the form data
+              formkey.currentState!.save();
+
+              print('Collected Form Data:');
+              print(
+                  'Crop Type: ${croptypeobject?.name} (ID: ${croptypeobject?.cropId})');
+              print('Farm ID: $farmid');
+              print(
+                  'Irrigation Method: ${irrigationMethod?.name} (ID: ${irrigationMethod?.irrigationmethodId})');
+              print('Initial Irrigation Hours: $initialIrrigationHours');
+              print('Mashtal: $mashtal');
+              print('Sharaky: $shara2y');
+              print(
+                  'Measuring Unit: ${measuringunit?.name} (ID: ${measuringunit?.measuringunitId})');
+              print('Area: $area');
+              print(
+                  'Planting Date: ${plantingDate != null ? formatter.format(plantingDate!) : "NULL"}');
+              print(
+                  'Last Irrigation Date: ${lastIrrigationDate != null ? formatter.format(lastIrrigationDate!) : "NULL"}');
+
+              try {
+                String result = await addFarmCropASYNC(
+                  croptypeobject!.cropId!,
+                  farmid.toString(),
+                  irrigationMethod!.irrigationmethodId!,
+                  initialIrrigationHours ?? '0',
+                  mashtal ?? '0',
+                  shara2y ?? '0',
+                  measuringunit!.measuringunitId!,
+                  area!,
+                  formatter.format(plantingDate!),
+                  formatter.format(lastIrrigationDate!),
+                );
+
+                print('\n=== ADD CROP RESULT ===');
+                print('Result: $result');
+
+                if (result == 'success') {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushReplacement(goToFarmCrops(farmid));
+                } else {
+                  Fluttertoast.showToast(
+                    msg: result,
+                    toastLength: Toast.LENGTH_LONG,
+                    gravity: ToastGravity.CENTER,
+                    timeInSecForIosWeb: 1,
+                    backgroundColor: Colors.red,
+                    textColor: Colors.white,
+                    fontSize: 16.0,
+                  );
+                }
+              } catch (e) {
+                print('\n=== ADD CROP ERROR ===');
+                print('Error: $e');
+                Fluttertoast.showToast(
+                  msg: 'حدث خطأ أثناء إضافة المحصول',
+                  toastLength: Toast.LENGTH_LONG,
+                  gravity: ToastGravity.CENTER,
+                  timeInSecForIosWeb: 1,
+                  backgroundColor: Colors.red,
+                  textColor: Colors.white,
+                  fontSize: 16.0,
+                );
+              } finally {
+                setState(() {
+                  loading = false;
+                });
+              }
             }
           },
-          child: const Text("حفظ"),
+          child: loading
+              ? CircularProgressIndicator(color: Colors.white)
+              : const Text("حفظ"),
         ),
       ],
     );
@@ -3320,25 +4569,27 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
 }
 
 class EditFarmCropDialog extends StatefulWidget {
-  //List<cropObject> cropTypes;
-  List<MeasringObject> measures;
-  List<irrigationMethodObject> irrigationMethods;
-
-  /*String updatelastirrigationdate;
-
-  int myfarmcropid;
-*/
-  int farmid;
-
-  farmcropObject myfarmcrop;
-
-  var BASEcontext;
+  final List<MeasringObject> measures;
+  final List<irrigationMethodObject> irrigationMethods;
+  final int farmid;
+  final farmcropObject myfarmcrop;
+  final BuildContext BASEcontext;
 
   //AddFarmCropDialog(this.myfarmcropid, this.updatelastirrigationdate, this.farmid);
-  EditFarmCropDialog(this.irrigationMethods,this.measures, this.farmid, this.myfarmcrop,this.BASEcontext);
+  EditFarmCropDialog(
+      {required this.irrigationMethods,
+      required this.measures,
+      required this.farmid,
+      required this.myfarmcrop,
+      required this.BASEcontext});
 
   @override
-  _EditFarmCropState createState() => new _EditFarmCropState(this.irrigationMethods,this.measures, this.farmid, this.myfarmcrop,this.BASEcontext);
+  _EditFarmCropState createState() => new _EditFarmCropState(
+      irrigationMethods: this.irrigationMethods,
+      measuringUnits: this.measures,
+      farmid: this.farmid,
+      myfarmcrop: this.myfarmcrop,
+      BASEcontext: this.BASEcontext);
 }
 
 class _EditFarmCropState extends State<EditFarmCropDialog> {
@@ -3363,7 +4614,8 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
   String? mashtal;
   String? shara2y;
   TextEditingController plantingDateController = new TextEditingController();
-  TextEditingController lastIrrigationDateController = new TextEditingController();
+  TextEditingController lastIrrigationDateController =
+      new TextEditingController();
   //DateTime plantingDate = null;
   DateTime? lastIrrigationDate = null;
   GlobalKey<FormState> formkey = GlobalKey<FormState>();
@@ -3371,36 +4623,55 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
   int? farmid;
   BuildContext? BASEcontext;
 
-  _EditFarmCropState(this.irrigationMethods,this.measuringUnits, this.farmid, this.myfarmcrop,this.BASEcontext){
-    rice = myfarmcrop!.cropname!.indexOf('رز') >= 0;
+  _EditFarmCropState(
+      {required this.irrigationMethods,
+      required this.measuringUnits,
+      required this.farmid,
+      required this.myfarmcrop,
+      required this.BASEcontext}) {
+    rice = (myfarmcrop?.cropname?.indexOf('رز') ?? -1) >= 0;
     /*croptypeobject = allcroptypes[allcroptypes.indexWhere((element) {
       return element.name.trim() == myfarmcrop.cropname.trim();
     })];*/
-    irrigationMethod = irrigationMethods[irrigationMethods.indexWhere((element) {
-      return element.name!.trim() == myfarmcrop!.irrigationmethodname!.trim();
-    })];
-    measuringunit = measuringUnits[measuringUnits.indexWhere((element) {
-      return element.name!.trim() == myfarmcrop!.measuringunitname!.trim();
-    })];
-    lastIrrigationDate = myfarmcrop!.lastirrigationdate;
+    int irrigationIndex = irrigationMethods.indexWhere((element) {
+      return element.name?.trim() == myfarmcrop?.irrigationmethodname?.trim();
+    });
+    irrigationMethod = irrigationIndex >= 0 ? irrigationMethods[irrigationIndex] : (irrigationMethods.isNotEmpty ? irrigationMethods[0] : null);
+    
+    int measuringIndex = measuringUnits.indexWhere((element) {
+      return element.name?.trim() == myfarmcrop?.measuringunitname?.trim();
+    });
+    measuringunit = measuringIndex >= 0 ? measuringUnits[measuringIndex] : (measuringUnits.isNotEmpty ? measuringUnits[0] : null);
+    lastIrrigationDate = myfarmcrop?.lastirrigationdate;
     //updatelastirrigationdate =formatter.format(myfarmcrop.lastirrigationdate);
-    lastIrrigationDateController.text = formatter.format(myfarmcrop!.lastirrigationdate!);
-    area = myfarmcrop!.area.toString();
-    initialIrrigationHours = myfarmcrop!.initirrigationhours.toString();
-    mashtal = myfarmcrop!.irrigationmashtal.toString();
-    shara2y = myfarmcrop!.irrigtaionshraky.toString();
+    lastIrrigationDateController.text = myfarmcrop?.lastirrigationdate != null 
+        ? formatter.format(myfarmcrop!.lastirrigationdate!)
+        : '';
+    area = myfarmcrop?.area?.toString() ?? '';
+    initialIrrigationHours = myfarmcrop?.initirrigationhours?.toString() ?? '';
+    mashtal = myfarmcrop?.irrigationmashtal?.toString() ?? '0';
+    shara2y = myfarmcrop?.irrigtaionshraky?.toString() ?? '0';
   }
   showAreYouSureDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AreYouSureDialog(this.myfarmcrop!.farmcropId!, this.farmid);
+        return AreYouSureDialog(this.myfarmcrop?.farmcropId ?? 0, this.farmid);
       },
     );
   }
+
   // set up the buttons
   @override
   Widget build(BuildContext context) {
+    print('=== EDIT DIALOG BUILD ===');
+    print('irrigationMethod: $irrigationMethod');
+    print('measuringunit: $measuringunit');
+    print('area: $area');
+    print('initialIrrigationHours: $initialIrrigationHours');
+    print('lastIrrigationDate: $lastIrrigationDate');
+    print('========================');
+    
     Widget cancelButton = TextButton(
       child: Text("اغلاق"),
       onPressed: () {
@@ -3412,7 +4683,8 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
     Widget submitButton = TextButton(
       child: Text("تعديل"),
       onPressed: () async {
-        if (!formkey.currentState!.validate()) { // NOT VALID
+        if (!formkey.currentState!.validate()) {
+          // NOT VALID
           return;
         }
         setState(() {
@@ -3421,14 +4693,14 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
         });
 
         String result = await editFarmCropASYNC(
-          myfarmcrop!.farmcropId.toString(),
-          irrigationMethod!.irrigationmethodId.toString(),
-          measuringunit!.measuringunitId.toString(),
-          area.toString(),
-          initialIrrigationHours.toString(),
-          mashtal.toString(),
-          shara2y!,
-          formatter.format(lastIrrigationDate!),
+          myfarmcrop?.farmcropId?.toString() ?? '0',
+          irrigationMethod?.irrigationmethodId?.toString() ?? '0',
+          measuringunit?.measuringunitId?.toString() ?? '0',
+          area ?? '',
+          initialIrrigationHours ?? '',
+          mashtal ?? '0',
+          shara2y ?? '0',
+          lastIrrigationDate != null ? formatter.format(lastIrrigationDate!) : '',
         );
 
         if (result == 'success') {
@@ -3459,15 +4731,20 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
     );
 
     return AlertDialog(
-      title: Text("تعديل محصول", textAlign: TextAlign.center,),
-      content: loading? Center(child: CircularProgressIndicator()) : Form(
-        key: formkey,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.8,
-          width: MediaQuery.of(context).size.width * 0.9,
-          child: Scrollbar(
-            child: ListView(
-              children: [
+      title: Text(
+        "تعديل محصول",
+        textAlign: TextAlign.center,
+      ),
+      content: loading
+          ? Center(child: CircularProgressIndicator())
+          : Container(
+              height: MediaQuery.of(context).size.height * 0.8,
+              width: MediaQuery.of(context).size.width * 0.9,
+              child: Form(
+                key: formkey,
+                child: Scrollbar(
+                  child: ListView(
+                    children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -3476,24 +4753,28 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
             backgroundColor: Colors.teal, // Button color
               padding: EdgeInsets.all(0),
             ),
-            child: FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+                            child: FaIcon(FontAwesomeIcons.calendar,
+                                color: Colors.white),
             onPressed: () {
               showDatePicker(
                 context: context,
-                initialDate: lastIrrigationDate ?? DateTime.now(),
-                firstDate: DateTime.now().subtract(Duration(days: 200)),
+                                initialDate:
+                                    lastIrrigationDate ?? DateTime.now(),
+                                firstDate: DateTime.now()
+                                    .subtract(Duration(days: 200)),
                 lastDate: DateTime.now(),
               ).then((value) {
-                if (value != null) { // Ensure value is not null
+                                if (value != null) {
+                                  // Ensure value is not null
                   setState(() {
                     lastIrrigationDate = value;
-                    lastIrrigationDateController.text = formatter.format(value);
+                                    lastIrrigationDateController.text =
+                                        formatter.format(value);
                   });
                 }
               });
             },
           ),
-
             SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -3505,26 +4786,34 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                             cursorColor: Color(0xff26a69a),
                             //enabled: false,
                             readOnly: true,
-                            decoration: InputDecoration(labelText: 'تاريخ اخر رية',focusColor: Color(0xff26a69a)),
-                            validator: (String? value){
-                              if(value!.isEmpty){
+                                  decoration: InputDecoration(
+                                      labelText: 'تاريخ اخر رية',
+                                      focusColor: Color(0xff26a69a)),
+                                  validator: (String? value) {
+                                    if (value!.isEmpty) {
                                 return "برجاء ادخال تاريخ اخر رية";
                               }
                             },
                             onTap: () {
                               showDatePicker(
                                   context: context,
-                                  initialDate: lastIrrigationDate == null ? DateTime.now() : lastIrrigationDate,
-                                  firstDate: DateTime.now().add(Duration(days: -200)),
-                                  lastDate: DateTime.now()).then((value){
+                                            initialDate:
+                                                lastIrrigationDate == null
+                                                    ? DateTime.now()
+                                                    : lastIrrigationDate,
+                                            firstDate: DateTime.now()
+                                                .add(Duration(days: -200)),
+                                            lastDate: DateTime.now())
+                                        .then((value) {
                                 setState(() {
                                   lastIrrigationDate = value;
-                                  lastIrrigationDateController.text = formatter.format(value!);
+                                        lastIrrigationDateController.text =
+                                            formatter.format(value!);
                                   //mydate = formatter.format(value);
                                 });
                               });
                             },
-                            onSaved: (String? value){
+                                  onSaved: (String? value) {
                               //farmname = value;
                             },
                           ),
@@ -3534,12 +4823,12 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                   ],
                 ),
                 DropdownButtonFormField<irrigationMethodObject>(
-                  validator: (irrigationMethodObject? value){
-                    if(value == null){
+                        validator: (irrigationMethodObject? value) {
+                          if (value == null) {
                       return "اختر نوع الري";
                     }
                   },
-                  onSaved: (irrigationMethodObject? value){
+                        onSaved: (irrigationMethodObject? value) {
                     irrigationMethod = value;
                   },
                   isExpanded: true,
@@ -3547,18 +4836,18 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                   icon: Icon(Icons.arrow_drop_down),
                   iconSize: 24,
                   elevation: 16,
-                  style: TextStyle(color: Colors.black,fontSize: 18),
+                        style: TextStyle(color: Colors.black, fontSize: 18),
                   onChanged: (irrigationMethodObject? newValue) {
                     this.irrigationMethod = newValue;
-                    setState(() {
-                    });
+                          setState(() {});
                   },
                   hint: Text('اختر نوع الري'),
                   items: irrigationMethods
-                      .map<DropdownMenuItem<irrigationMethodObject>>((irrigationMethodObject value) {
+                            .map<DropdownMenuItem<irrigationMethodObject>>(
+                                (irrigationMethodObject value) {
                     return DropdownMenuItem<irrigationMethodObject>(
                       value: value,
-                      child: Text(value.name!),
+                      child: Text(value.name ?? ''),
                     );
                   }).toList(),
                 ),
@@ -3572,17 +4861,23 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                               style: TextStyle(fontFamily: 'OpenSans'),
                             initialValue: area,
                             cursorColor: Color(0xff26a69a),
-                            decoration: InputDecoration(labelText: 'المساحة المزروعة',focusColor: Color(0xff26a69a)),
-                            validator: (String? value){
-                              if(value!.isEmpty){
+                                  decoration: InputDecoration(
+                                      labelText: 'المساحة المزروعة',
+                                      focusColor: Color(0xff26a69a)),
+                                  validator: (String? value) {
+                                    if (value == null || value.isEmpty) {
                                 return "برجاء ادخال المساحة";
                               }
+                                    return null;
                             },
-                            onSaved: (String? value){
+                                  onSaved: (String? value) {
                               area = value;
                             },
-                            inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    DecimalTextInputFormatter(decimalRange: 2)
+                                  ],
+                                  keyboardType: TextInputType.numberWithOptions(
+                                      decimal: true),
                           ),
                         ],
                       ),
@@ -3592,12 +4887,12 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                       child: Column(
                         children: [
                           DropdownButtonFormField<MeasringObject>(
-                            validator: (MeasringObject? value){
-                              if(value == null){
+                                  validator: (MeasringObject? value) {
+                                    if (value == null) {
                                 return "اختر الوحدة";
                               }
                             },
-                            onSaved: (MeasringObject? value){
+                                  onSaved: (MeasringObject? value) {
                               measuringunit = value;
                             },
                             isExpanded: true,
@@ -3605,18 +4900,19 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                             icon: Icon(Icons.arrow_drop_down),
                             iconSize: 24,
                             elevation: 16,
-                            style: TextStyle(color: Colors.black,fontSize: 18),
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 18),
                             onChanged: (MeasringObject? newValue) {
                               this.measuringunit = newValue;
-                              setState(() {
-                              });
+                                    setState(() {});
                             },
                             hint: Text('اختر الوحدة'),
                             items: measuringUnits
-                                .map<DropdownMenuItem<MeasringObject>>((MeasringObject value) {
+                                      .map<DropdownMenuItem<MeasringObject>>(
+                                          (MeasringObject value) {
                               return DropdownMenuItem<MeasringObject>(
                                 value: value,
-                                child: Text(value.name!),
+                                child: Text(value.name ?? ''),
                               );
                             }).toList(),
                           ),
@@ -3629,41 +4925,57 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                               style: TextStyle(fontFamily: 'OpenSans'),
                   initialValue: initialIrrigationHours,
                   cursorColor: Color(0xff26a69a),
-                  decoration: InputDecoration(labelText: 'عدد ساعات رية الزراعه',focusColor: Color(0xff26a69a)),
-                  onSaved: (String? value){
+                        decoration: InputDecoration(
+                            labelText: 'عدد ساعات رية الزراعه',
+                            focusColor: Color(0xff26a69a)),
+                        onSaved: (String? value) {
                     initialIrrigationHours = value;
                   },
-                  inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                ),
-                if(rice)
+                        inputFormatters: [
+                          DecimalTextInputFormatter(decimalRange: 2)
+                        ],
+                        keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      if (rice)
                   TextFormField(
                               style: TextStyle(fontFamily: 'OpenSans'),
                     initialValue: mashtal,
                     cursorColor: Color(0xff26a69a),
-                    decoration: InputDecoration(labelText: 'عدد ساعات ري المشتل',focusColor: Color(0xff26a69a)),
-                    onSaved: (String? value){
+                          decoration: InputDecoration(
+                              labelText: 'عدد ساعات ري المشتل',
+                              focusColor: Color(0xff26a69a)),
+                          onSaved: (String? value) {
                       mashtal = value;
                     },
-                    inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                  ),
-                if(rice)
+                          inputFormatters: [
+                            DecimalTextInputFormatter(decimalRange: 2)
+                          ],
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                        ),
+                      if (rice)
                   TextFormField(
                               style: TextStyle(fontFamily: 'OpenSans'),
                     initialValue: shara2y,
                     cursorColor: Color(0xff26a69a),
-                    decoration: InputDecoration(labelText: 'عدد ساعات طفي الشراقي',focusColor: Color(0xff26a69a)),
-                    onSaved: (String? value){
+                          decoration: InputDecoration(
+                              labelText: 'عدد ساعات طفي الشراقي',
+                              focusColor: Color(0xff26a69a)),
+                          onSaved: (String? value) {
                       shara2y = value;
                     },
-                    inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            DecimalTextInputFormatter(decimalRange: 2)
+                          ],
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
                   ),
     ElevatedButton(
     style: ElevatedButton.styleFrom(
     backgroundColor: Colors.red, // Button color
-    padding: EdgeInsets.symmetric(vertical: 10, horizontal: 15), // Optional padding
+                          padding: EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 15), // Optional padding
     ),
     onPressed: () {
     Navigator.of(context).pop();
@@ -3673,45 +4985,68 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
     mainAxisSize: MainAxisSize.min,
     children: [
     Icon(Icons.delete, color: Colors.white, size: 35),
-    SizedBox(width: 8), // Add spacing between icon and text
-    Text("مسح المحصول", style: TextStyle(color: Colors.white)),
+                            SizedBox(
+                                width: 8), // Add spacing between icon and text
+                            Text("مسح المحصول",
+                                style: TextStyle(color: Colors.white)),
     ],
     ),
     ),
-
+    // Fallback content to ensure dialog is never blank
+    if (irrigationMethod == null || measuringunit == null)
+      Container(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text('خطأ في تحميل البيانات', style: TextStyle(fontSize: 16, color: Colors.red)),
+            SizedBox(height: 10),
+            Text('يرجى المحاولة مرة أخرى', style: TextStyle(fontSize: 14)),
+            SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Retry by reopening the dialog
+                showEditFarmCropDialog(
+                  BASEcontext: BASEcontext!,
+                  irrigationMethods: irrigationMethods,
+                  measures: measuringUnits,
+                  farmid: farmid!,
+                  myfarmcrop: myfarmcrop!,
+                );
+              },
+              child: Text('إعادة المحاولة'),
+            ),
+          ],
+        ),
+      ),
     ],
             ),
           ),
         ),
       ),
-      actions: loading?[]:[
-        cancelButton,
-        submitButton
-      ],
+      actions: loading ? [] : [cancelButton, submitButton],
     );
   }
 }
 
-
-Future<String> fetchIrrigation(http.Client client, int myfarmcropid,String updatelastirrigationdate) async {
-
+Future<String> fetchIrrigation(http.Client client, int myfarmcropid,
+    String updatelastirrigationdate) async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
   final response = await client.get(
-    Uri.parse('https://irwicrop.com/Home/updateLastIrrigationAndGetWaterReq?myfarmcropid=${myfarmcropid.toString()}&updatelastirrigationdate=$updatelastirrigationdate'),
+    Uri.parse(
+        'https://irwicrop.com/Home/updateLastIrrigationAndGetWaterReq?myfarmcropid=${myfarmcropid.toString()}&updatelastirrigationdate=$updatelastirrigationdate'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
     },
   );
 
-
   // Use the compute function to run parseFarms in a separate isolate.
   return response.body;
 }
 
 Future<String> userIrrigated(http.Client client, int myfarmcropid) async {
-
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
   final response = await client.get(
@@ -3722,22 +5057,48 @@ Future<String> userIrrigated(http.Client client, int myfarmcropid) async {
     },
   );
 
-
   // Use the compute function to run parseFarms in a separate isolate.
   return response.body;
 }
 
+Future<String> addFarmCropASYNC(
+    String cropId,
+    String farmId,
+    String irrigationmethodId,
+    String initirrigationhours,
+    String irrigationmashtal,
+    String irrigtaionshraky,
+    String measuringunitId,
+    String area,
+    String plantingdate,
+    String lastirrigationdate) async {
+  print('\n=== ADD FARMCROP REQUEST START ===');
+  print('Timestamp: ${DateTime.now()}');
 
+  // Input validation
+  if (cropId.isEmpty ||
+      farmId.isEmpty ||
+      irrigationmethodId.isEmpty ||
+      measuringunitId.isEmpty ||
+      area.isEmpty ||
+      plantingdate.isEmpty ||
+      lastirrigationdate.isEmpty) {
+    print('\n=== ADD FARMCROP VALIDATION ERROR ===');
+    print('Missing required parameters:');
+    print('cropId: ${cropId.isEmpty ? "EMPTY" : cropId}');
+    print('farmId: ${farmId.isEmpty ? "EMPTY" : farmId}');
+    print(
+        'irrigationmethodId: ${irrigationmethodId.isEmpty ? "EMPTY" : irrigationmethodId}');
+    print(
+        'measuringunitId: ${measuringunitId.isEmpty ? "EMPTY" : measuringunitId}');
+    print('area: ${area.isEmpty ? "EMPTY" : area}');
+    print('plantingdate: ${plantingdate.isEmpty ? "EMPTY" : plantingdate}');
+    print(
+        'lastirrigationdate: ${lastirrigationdate.isEmpty ? "EMPTY" : lastirrigationdate}');
+    print('=====================================\n');
+    return 'خطأ في البيانات المدخلة';
+  }
 
-Future<String> addFarmCropASYNC(String cropId, String farmId, String irrigationmethodId, String initirrigationhours,
-    String irrigationmashtal,String irrigtaionshraky, String measuringunitId, String area, String plantingdate, String lastirrigationdate) async {
-  /*if(soiltype == 'طينية'){
-    soiltype = 'clay';
-  }else if(soiltype == 'رملية'){
-    soiltype = 'sandy';
-  }else if(soiltype == 'سلتية'){
-    soiltype = 'silt';
-  }*/
   var mydata = jsonEncode({
     'cropId': cropId,
     'farmId': farmId,
@@ -3751,33 +5112,140 @@ Future<String> addFarmCropASYNC(String cropId, String farmId, String irrigationm
     'lastirrigationdate': lastirrigationdate,
   });
 
+  // Log the request data
+  apiLog('=== ADD FARMCROP API REQUEST ===');
+  apiLog('URL: https://irwicrop.com/Home/addfarmcrop');
+  apiLog('Method: POST');
+  apiLog('Request Data: $mydata');
+  apiLog('===============================');
+
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
-  final http.Response response = await http.post(
-    Uri.parse('https://irwicrop.com/Home/addfarmcrop'), // ✅ Convert to Uri
+  // Log cookie information
+  apiLog('=== COOKIE INFO ===');
+  apiLog('Cookie length: ${cookie.length}');
+  apiLog(
+      'Cookie preview: ${cookie.isNotEmpty ? cookie.substring(0, math.min(50, cookie.length)) + '...' : 'EMPTY'}');
+  apiLog('==================');
+
+  try {
+    print('\n=== ADD FARMCROP API CALL ===');
+    print('Making POST request to: https://irwicrop.com/Home/addfarmcrop');
+    print('Request Body: $mydata');
+
+    final http.Response response = await http
+        .post(
+      Uri.parse('https://irwicrop.com/Home/addfarmcrop'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
     },
     body: mydata,
-  );
+    )
+        .timeout(
+      Duration(seconds: 30),
+      onTimeout: () {
+        print('\n=== ADD FARMCROP TIMEOUT ===');
+        print('Request timed out after 30 seconds');
+        print('============================\n');
+        throw TimeoutException('Request timed out');
+      },
+    );
 
+    print('\n=== ADD FARMCROP RESPONSE ===');
+    print('Status Code: ${response.statusCode}');
+    print('Response Headers: ${response.headers}');
+    print('Response Body: ${response.body}');
+    print('===========================\n');
 
-  return response.body;
+    // Log the response
+    apiLog('=== ADD FARMCROP API RESPONSE ===');
+    apiLog('Status Code: ${response.statusCode}');
+    apiLog('Response Headers: ${response.headers}');
+    apiLog('Response Body: ${response.body}');
+    apiLog('Response Body Length: ${response.body.length}');
+    apiLog('================================');
+
+    // Handle different response scenarios
+    if (response.statusCode == 200) {
+      // Success response
+      if (response.body.toLowerCase().contains('success') ||
+          response.body.toLowerCase().contains('تم') ||
+          response.body.isEmpty) {
+        apiLog('✅ Add farmcrop successful');
+        return 'success';
+      } else {
+        apiLog('⚠️ Unexpected success response body: ${response.body}');
+        return 'success'; // Still consider it success if status is 200
+      }
+    } else if (response.statusCode == 302) {
+      // Redirect response (common in this API)
+      String? location = response.headers['location'];
+      apiLog('Redirect location: $location');
+
+      if (location != null && location.contains('/Home/farmcrops/')) {
+        apiLog('✅ Add farmcrop successful (redirect)');
+        return 'success';
+      } else {
+        apiLog('⚠️ Unexpected redirect location: $location');
+        return 'خطأ في إعادة التوجيه';
+      }
+    } else if (response.statusCode == 401) {
+      apiLog('❌ Unauthorized - User not logged in');
+      return 'يرجى إعادة تسجيل الدخول';
+    } else if (response.statusCode == 400) {
+      apiLog('❌ Bad Request - Invalid data');
+      return 'بيانات غير صحيحة';
+    } else if (response.statusCode == 500) {
+      apiLog('❌ Server Error');
+      return 'خطأ في الخادم';
+    } else {
+      apiLog('❌ Unexpected status code: ${response.statusCode}');
+      return 'خطأ غير متوقع: ${response.statusCode}';
+    }
+  } catch (e) {
+    apiLog('=== ADD FARMCROP ERROR ===');
+    apiLog('Error type: ${e.runtimeType}');
+    apiLog('Error message: $e');
+    apiLog('==========================');
+
+    if (e is TimeoutException) {
+      return 'انتهت مهلة الاتصال';
+    } else if (e is SocketException) {
+      return 'خطأ في الاتصال بالخادم';
+    } else {
+      return 'خطأ غير متوقع: $e';
+    }
+  }
 }
 
+Future<String> editFarmCropASYNC(
+    String farmcropId,
+    String irrigationmethodId,
+    String measuringunitId,
+    String area,
+    String initirrigationhours,
+    String irrigationmashtal,
+    String irrigtaionshraky,
+    String lastirrigationdate) async {
+  // Input validation
+  if (farmcropId.isEmpty ||
+      irrigationmethodId.isEmpty ||
+      measuringunitId.isEmpty ||
+      area.isEmpty ||
+      lastirrigationdate.isEmpty) {
+    apiLog('=== EDIT FARMCROP VALIDATION ERROR ===');
+    apiLog('Missing required parameters');
+    apiLog('farmcropId: $farmcropId');
+    apiLog('irrigationmethodId: $irrigationmethodId');
+    apiLog('measuringunitId: $measuringunitId');
+    apiLog('area: $area');
+    apiLog('lastirrigationdate: $lastirrigationdate');
+    apiLog('=====================================');
+    return 'خطأ في البيانات المدخلة';
+  }
 
-Future<String> editFarmCropASYNC(String farmcropId, String irrigationmethodId, String measuringunitId, String area, String initirrigationhours,
-    String irrigationmashtal,String irrigtaionshraky, String lastirrigationdate) async
-{
-  /*if(soiltype == 'طينية'){
-    soiltype = 'clay';
-  }else if(soiltype == 'رملية'){
-    soiltype = 'sandy';
-  }else if(soiltype == 'سلتية'){
-    soiltype = 'silt';
-  }*/
   var mydata = jsonEncode({
     'farmcropId': farmcropId,
     'irrigationmethodId': irrigationmethodId,
@@ -3789,97 +5257,242 @@ Future<String> editFarmCropASYNC(String farmcropId, String irrigationmethodId, S
     'lastirrigationdate': lastirrigationdate,
   });
 
+  // Log the request data
+  apiLog('=== EDIT FARMCROP API REQUEST ===');
+  apiLog('URL: https://irwicrop.com/Home/editfarmcrop');
+  apiLog('Method: POST');
+  apiLog('Request Data: $mydata');
+  apiLog('===============================');
+
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
-  final http.Response response = await http.post(
-    Uri.parse('https://irwicrop.com/Home/editfarmcrop'), // ✅ Convert to Uri
+  // Log cookie information
+  apiLog('=== COOKIE INFO ===');
+  apiLog('Cookie length: ${cookie.length}');
+  apiLog(
+      'Cookie preview: ${cookie.isNotEmpty ? cookie.substring(0, math.min(50, cookie.length)) + '...' : 'EMPTY'}');
+  apiLog('==================');
+
+  try {
+    final http.Response response = await http
+        .post(
+      Uri.parse('https://irwicrop.com/Home/editfarmcrop'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
     },
     body: mydata,
-  );
+    )
+        .timeout(
+      Duration(seconds: 30),
+      onTimeout: () {
+        apiLog('=== EDIT FARMCROP TIMEOUT ===');
+        apiLog('Request timed out after 30 seconds');
+        apiLog('============================');
+        throw TimeoutException('Request timed out');
+      },
+    );
 
+    // Log the response
+    apiLog('=== EDIT FARMCROP API RESPONSE ===');
+    apiLog('Status Code: ${response.statusCode}');
+    apiLog('Response Headers: ${response.headers}');
+    apiLog('Response Body: ${response.body}');
+    apiLog('Response Body Length: ${response.body.length}');
+    apiLog('================================');
 
-  //return response.body;
-  if (response.statusCode == 302) {
-    if(response.headers['location']!.indexOf('/Home/farmcrops/') >=0){
+    // Handle different response scenarios
+    if (response.statusCode == 200) {
+      // Success response
+      if (response.body.toLowerCase().contains('success') ||
+          response.body.toLowerCase().contains('تم') ||
+          response.body.isEmpty) {
+        apiLog('✅ Edit farmcrop successful');
       return 'success';
-    }else{
-      return 'خطأ غير متوقع';
+      } else {
+        apiLog('⚠️ Unexpected success response body: ${response.body}');
+        return 'success'; // Still consider it success if status is 200
+      }
+    } else if (response.statusCode == 302) {
+      // Redirect response (common in this API)
+      String? location = response.headers['location'];
+      apiLog('Redirect location: $location');
+
+      if (location != null && location.contains('/Home/farmcrops/')) {
+        apiLog('✅ Edit farmcrop successful (redirect)');
+        return 'success';
+      } else {
+        apiLog('⚠️ Unexpected redirect location: $location');
+        return 'خطأ في إعادة التوجيه';
+      }
+    } else if (response.statusCode == 401) {
+      apiLog('❌ Unauthorized - User not logged in');
+      return 'يرجى إعادة تسجيل الدخول';
+    } else if (response.statusCode == 400) {
+      apiLog('❌ Bad Request - Invalid data');
+      return 'بيانات غير صحيحة';
+    } else if (response.statusCode == 500) {
+      apiLog('❌ Server Error');
+      return 'خطأ في الخادم';
+    } else {
+      apiLog('❌ Unexpected status code: ${response.statusCode}');
+      return 'خطأ غير متوقع: ${response.statusCode}';
     }
-  } else {//302
-    print(response.body);
-    return 'خطأ غير متوقع';
+  } catch (e) {
+    apiLog('=== EDIT FARMCROP ERROR ===');
+    apiLog('Error type: ${e.runtimeType}');
+    apiLog('Error message: $e');
+    apiLog('==========================');
+
+    if (e is TimeoutException) {
+      return 'انتهت مهلة الاتصال';
+    } else if (e is SocketException) {
+      return 'خطأ في الاتصال بالخادم';
+    } else {
+      return 'خطأ غير متوقع: $e';
+    }
   }
 }
 
 Future<String> deleteFarmCropASYNC(String farmcropId) async {
-  /*if(soiltype == 'طينية'){
-    soiltype = 'clay';
-  }else if(soiltype == 'رملية'){
-    soiltype = 'sandy';
-  }else if(soiltype == 'سلتية'){
-    soiltype = 'silt';
-  }*/
+  // Input validation
+  if (farmcropId.isEmpty) {
+    apiLog('=== DELETE FARMCROP VALIDATION ERROR ===');
+    apiLog('Missing farmcropId parameter');
+    apiLog('farmcropId: $farmcropId');
+    apiLog('=====================================');
+    return 'خطأ في البيانات المدخلة';
+  }
+
   var mydata = jsonEncode({
     'farmcropId': farmcropId,
   });
 
+  // Log the request data
+  apiLog('=== DELETE FARMCROP API REQUEST ===');
+  apiLog('URL: https://irwicrop.com/Home/deletefarmcrop');
+  apiLog('Method: POST');
+  apiLog('Request Data: $mydata');
+  apiLog('===============================');
+
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
 
-  final http.Response response = await http.post(
-    Uri.parse('https://irwicrop.com/Home/deletefarmcrop'), // ✅ Convert to Uri
+  // Log cookie information
+  apiLog('=== COOKIE INFO ===');
+  apiLog('Cookie length: ${cookie.length}');
+  apiLog(
+      'Cookie preview: ${cookie.isNotEmpty ? cookie.substring(0, math.min(50, cookie.length)) + '...' : 'EMPTY'}');
+  apiLog('==================');
+
+  try {
+    final http.Response response = await http
+        .post(
+      Uri.parse('https://irwicrop.com/Home/deletefarmcrop'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
     },
     body: mydata,
-  );
+    )
+        .timeout(
+      Duration(seconds: 30),
+      onTimeout: () {
+        apiLog('=== DELETE FARMCROP TIMEOUT ===');
+        apiLog('Request timed out after 30 seconds');
+        apiLog('============================');
+        throw TimeoutException('Request timed out');
+      },
+    );
 
+    // Log the response
+    apiLog('=== DELETE FARMCROP API RESPONSE ===');
+    apiLog('Status Code: ${response.statusCode}');
+    apiLog('Response Headers: ${response.headers}');
+    apiLog('Response Body: ${response.body}');
+    apiLog('Response Body Length: ${response.body.length}');
+    apiLog('================================');
 
-  //return response.body;
-  if (response.statusCode == 302) {
-    if(response.headers['location']!.indexOf('/Home/farmcrops/') >=0){
+    // Handle different response scenarios
+    if (response.statusCode == 200) {
+      // Success response
+      if (response.body.toLowerCase().contains('success') ||
+          response.body.toLowerCase().contains('تم') ||
+          response.body.isEmpty) {
+        apiLog('✅ Delete farmcrop successful');
       return 'success';
-    }else{
-      return 'خطأ غير متوقع';
+      } else {
+        apiLog('⚠️ Unexpected success response body: ${response.body}');
+        return 'success'; // Still consider it success if status is 200
+      }
+    } else if (response.statusCode == 302) {
+      // Redirect response (common in this API)
+      String? location = response.headers['location'];
+      apiLog('Redirect location: $location');
+
+      if (location != null && location.contains('/Home/farmcrops/')) {
+        apiLog('✅ Delete farmcrop successful (redirect)');
+        return 'success';
+      } else {
+        apiLog('⚠️ Unexpected redirect location: $location');
+        return 'خطأ في إعادة التوجيه';
+      }
+    } else if (response.statusCode == 401) {
+      apiLog('❌ Unauthorized - User not logged in');
+      return 'يرجى إعادة تسجيل الدخول';
+    } else if (response.statusCode == 400) {
+      apiLog('❌ Bad Request - Invalid data');
+      return 'بيانات غير صحيحة';
+    } else if (response.statusCode == 500) {
+      apiLog('❌ Server Error');
+      return 'خطأ في الخادم';
+    } else {
+      apiLog('❌ Unexpected status code: ${response.statusCode}');
+      return 'خطأ غير متوقع: ${response.statusCode}';
     }
-  } else {//302
-    print(response.body);
-    return 'خطأ غير متوقع';
+  } catch (e) {
+    apiLog('=== DELETE FARMCROP ERROR ===');
+    apiLog('Error type: ${e.runtimeType}');
+    apiLog('Error message: $e');
+    apiLog('==========================');
+
+    if (e is TimeoutException) {
+      return 'انتهت مهلة الاتصال';
+    } else if (e is SocketException) {
+      return 'خطأ في الاتصال بالخادم';
+    } else {
+      return 'خطأ غير متوقع: $e';
+    }
   }
 }
 
 class DecimalTextInputFormatter extends TextInputFormatter {
   DecimalTextInputFormatter({required this.decimalRange})
-      : assert(decimalRange == null || decimalRange > 0);
+      : assert(decimalRange > 0);
 
   final int decimalRange;
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, // unused.
+    TextEditingValue oldValue,
       TextEditingValue newValue,
       ) {
     TextSelection newSelection = newValue.selection;
     String truncated = newValue.text;
     var myDouble = double.tryParse(newValue.text);
 
-    if(myDouble == null && newValue.text.length != 0)
+    if (myDouble == null && newValue.text.isNotEmpty) {
       return oldValue;
-    if (decimalRange != null) {
-      String value = newValue.text;
+    }
 
+    String value = newValue.text;
       if (value.contains(".") &&
           value.substring(value.indexOf(".") + 1).length > decimalRange) {
         truncated = oldValue.text;
         newSelection = oldValue.selection;
       } else if (value == ".") {
         truncated = "0.";
-
         newSelection = newValue.selection.copyWith(
           baseOffset: math.min(truncated.length, truncated.length + 1),
           extentOffset: math.min(truncated.length, truncated.length + 1),
@@ -3892,6 +5505,4 @@ class DecimalTextInputFormatter extends TextInputFormatter {
         composing: TextRange.empty,
       );
     }
-    return newValue;
   }
-}

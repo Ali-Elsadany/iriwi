@@ -44,13 +44,19 @@
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
 	<key>NSLocationAlwaysUsageDescription</key>
-    <string>Please provide your location</string>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Please provide your location</string>
-    <key>NSAppTransportSecurity</key>
-    <dict>
-      <key>NSAllowsArbitraryLoads</key>
-      <true/>
-    </dict>
+	<string>IRWI uses your location to provide accurate farm management features including weather data for your specific area, soil type information, and irrigation recommendations. Background location helps us provide timely alerts about weather conditions that may affect your crops even when the app is not active.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>IRWI uses your location to provide farm-specific information including local weather conditions, soil data, and irrigation recommendations for your agricultural area. This helps us give you accurate farming advice and crop management suggestions.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>IRWI uses your location to provide accurate farm management features including weather data for your specific area, soil type information, and irrigation recommendations. Background location helps us provide timely alerts about weather conditions that may affect your crops even when the app is not active.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 </dict>
 </plist>

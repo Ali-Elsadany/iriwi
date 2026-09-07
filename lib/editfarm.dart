@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 
@@ -18,16 +17,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:math' as math;
 import 'directory.dart';
+import 'widgets/side_menu.dart';
 
-
-
-
-Future<bool> editFarmASYNC(String name, String government, String soiltype, bool salty,double lng,double lat, double dischargerate, double gasuseage, double gasprice, int farmId,String cookie) async {
-  if(soiltype == 'طينية'){
+Future<bool> editFarmASYNC(
+    String name,
+    String government,
+    String soiltype,
+    bool salty,
+    double lng,
+    double lat,
+    double dischargerate,
+    double gasuseage,
+    double gasprice,
+    int farmId,
+    String cookie) async {
+  if (soiltype == 'طينية') {
     soiltype = 'clay';
-  }else if(soiltype == 'رملية'){
+  } else if (soiltype == 'رملية') {
     soiltype = 'sandy';
-  }else if(soiltype == 'سلتية'){
+  } else if (soiltype == 'سلتية') {
     soiltype = 'silt';
   }
   var mydata = jsonEncode({
@@ -43,7 +51,6 @@ Future<bool> editFarmASYNC(String name, String government, String soiltype, bool
     'farmId': farmId,
   });
 
-
   final http.Response response = await http.post(
     Uri.parse('https://irwicrop.com/Home/editfarm'), // Convert String to Uri
     headers: <String, String>{
@@ -53,14 +60,12 @@ Future<bool> editFarmASYNC(String name, String government, String soiltype, bool
     body: mydata,
   );
 
-
   if (response.statusCode == 302) {
     //return Album.fromJson(json.decode(response.body));
     //String reqbody = response.request.toString();
     //String resbody = response.body;
     //if(response.headers['location'] == '/Home/farms'){
-    if(response.headers['set-cookie'] == null)
-      return true;
+    if (response.headers['set-cookie'] == null) return true;
     SharedPreferences prefs = await SharedPreferences.getInstance();
     //int counter = (prefs.getInt('counter') ?? 0) + 1;
     //print('Pressed $counter times.');
@@ -70,19 +75,18 @@ Future<bool> editFarmASYNC(String name, String government, String soiltype, bool
     //}
     print(response);
     return false;
-  } else {//302
+  } else {
+    //302
     print(response.body);
     return false;
     throw Exception('Failed to create album.');
   }
 }
 
-
-Future<bool> deleteFarmASYNC(int farmId,String cookie) async {
+Future<bool> deleteFarmASYNC(int farmId, String cookie) async {
   var mydata = jsonEncode({
     'farmId': farmId,
   });
-
 
   final http.Response response = await http.post(
     Uri.parse('https://irwicrop.com/Home/deletefarm'), // Convert String to Uri
@@ -93,14 +97,12 @@ Future<bool> deleteFarmASYNC(int farmId,String cookie) async {
     body: mydata,
   );
 
-
   if (response.statusCode == 302) {
     //return Album.fromJson(json.decode(response.body));
     //String reqbody = response.request.toString();
     //String resbody = response.body;
     //if(response.headers['location'] == '/Home/farms'){
-    if(response.headers['set-cookie'] == null)
-      return true;
+    if (response.headers['set-cookie'] == null) return true;
     SharedPreferences prefs = await SharedPreferences.getInstance();
     //int counter = (prefs.getInt('counter') ?? 0) + 1;
     //print('Pressed $counter times.');
@@ -110,7 +112,8 @@ Future<bool> deleteFarmASYNC(int farmId,String cookie) async {
     //}
     print(response);
     return false;
-  } else {//302
+  } else {
+    //302
     print(response.body);
     return false;
     throw Exception('Failed to create album.');
@@ -118,9 +121,7 @@ Future<bool> deleteFarmASYNC(int farmId,String cookie) async {
 }
 
 Future<bool> logoutASYNC(String cookie) async {
-  var mydata = jsonEncode({
-  });
-
+  var mydata = jsonEncode({});
 
   final http.Response response = await http.post(
     Uri.parse('https://irwicrop.com/Account/LogOff'), // Convert String to Uri
@@ -128,34 +129,33 @@ Future<bool> logoutASYNC(String cookie) async {
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
     },
-    body: mydata, // Ensure `mydata` is a valid String (use `jsonEncode` if needed)
+    body:
+        mydata, // Ensure `mydata` is a valid String (use `jsonEncode` if needed)
   );
-
 
   if (response.statusCode == 302) {
     //return Album.fromJson(json.decode(response.body));
     //String reqbody = response.request.toString();
     //String resbody = response.body;
     //if(response.headers['location'] == '/Home/farms'){
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      //int counter = (prefs.getInt('counter') ?? 0) + 1;
-      //print('Pressed $counter times.');
-      await prefs.setString('cookie', response.headers['set-cookie']!);
-      print('Success Man !');
-      return true;
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    //int counter = (prefs.getInt('counter') ?? 0) + 1;
+    //print('Pressed $counter times.');
+    await prefs.setString('cookie', response.headers['set-cookie']!);
+    print('Success Man !');
+    return true;
     //}
     print(response);
     return false;
-  } else {//302
+  } else {
+    //302
     print(response.body);
     return false;
     throw Exception('Failed to create album.');
   }
 }
 
-
 class editfarm extends StatefulWidget {
-
   editfarm(this.farmid);
 
   final int farmid;
@@ -195,26 +195,10 @@ class _editfarmState extends State<editfarm> {
       print('Drag Ended');
     },
   );
-  Map<MarkerId, Marker> markers = <MarkerId, Marker>{MarkerId('marker_id_1'):Marker(
-    markerId: MarkerId('marker_id_1'),
-    position: LatLng(30.0444, 31.235),
-    infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
-    onTap: () {
-      //_onMarkerTapped(markerId);
-      print('Marker Tapped');
-    },
-    onDragEnd: (LatLng position) {
-      print('Drag Ended');
-    },
-  )};
-
-  var farmid;
-
-  _editfarmState(this.farmid);
-  void _updatePosition(CameraPosition _position) {
-    markers.update(MarkerId('marker_id_1'), (value) => Marker(
+  Map<MarkerId, Marker> markers = <MarkerId, Marker>{
+    MarkerId('marker_id_1'): Marker(
       markerId: MarkerId('marker_id_1'),
-      position: LatLng(_position.target.latitude, _position.target.longitude),
+      position: LatLng(30.0444, 31.235),
       infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
       onTap: () {
         //_onMarkerTapped(markerId);
@@ -223,13 +207,62 @@ class _editfarmState extends State<editfarm> {
       onDragEnd: (LatLng position) {
         print('Drag Ended');
       },
-    ));
+    )
+  };
+
+  var farmid;
+
+  _editfarmState(this.farmid);
+  void _updatePosition(CameraPosition _position) {
+    markers.update(
+        MarkerId('marker_id_1'),
+        (value) => Marker(
+              markerId: MarkerId('marker_id_1'),
+              position:
+                  LatLng(_position.target.latitude, _position.target.longitude),
+              infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
+              onTap: () {
+                //_onMarkerTapped(markerId);
+                print('Marker Tapped');
+              },
+              onDragEnd: (LatLng position) {
+                print('Drag Ended');
+              },
+            ));
     Lat = _position.target.latitude;
     Lng = _position.target.longitude;
     setState(() {});
   }
 
-  var allGovernments = <String>[ 'محافظة الإسكندرية', 'محافظة الإسماعيلية', 'محافظة أسوان', 'محافظة أسيوط', 'محافظة الأقصر', 'محافظة البحر الأحمر', 'محافظة البحيرة', 'محافظة بني سويف', 'محافظة بورسعيد', 'محافظة جنوب سيناء', 'محافظة الجيزة', 'محافظة الدقهلية', 'محافظة دمياط', 'محافظة سوهاج', 'محافظة السويس', 'محافظة الشرقية', 'محافظة شمال سيناء', 'محافظة الغربية', 'محافظة الفيوم', 'محافظة القاهرة', 'محافظة القليوبية', 'محافظة قنا', 'محافظة كفر الشيخ', 'محافظة مطروح', 'محافظة المنوفية', 'محافظة المنيا', 'محافظة الوادي الجديد'  ];
+  var allGovernments = <String>[
+    'محافظة الإسكندرية',
+    'محافظة الإسماعيلية',
+    'محافظة أسوان',
+    'محافظة أسيوط',
+    'محافظة الأقصر',
+    'محافظة البحر الأحمر',
+    'محافظة البحيرة',
+    'محافظة بني سويف',
+    'محافظة بورسعيد',
+    'محافظة جنوب سيناء',
+    'محافظة الجيزة',
+    'محافظة الدقهلية',
+    'محافظة دمياط',
+    'محافظة سوهاج',
+    'محافظة السويس',
+    'محافظة الشرقية',
+    'محافظة شمال سيناء',
+    'محافظة الغربية',
+    'محافظة الفيوم',
+    'محافظة القاهرة',
+    'محافظة القليوبية',
+    'محافظة قنا',
+    'محافظة كفر الشيخ',
+    'محافظة مطروح',
+    'محافظة المنوفية',
+    'محافظة المنيا',
+    'محافظة الوادي الجديد'
+  ];
   GlobalKey<FormState> formkey = GlobalKey<FormState>();
   final TextEditingController _pass = TextEditingController();
   Completer<GoogleMapController> _controller = Completer();
@@ -354,7 +387,7 @@ class _editfarmState extends State<editfarm> {
       distanceFilter: 0,
       interval: 100,
     );
-    location.getLocation().then((value){
+    location.getLocation().then((value) {
       CameraPosition userlocation = CameraPosition(
         target: LatLng(value.latitude!, value.longitude!),
         zoom: 15,
@@ -368,8 +401,7 @@ class _editfarmState extends State<editfarm> {
             timeInSecForIosWeb: 1,
             backgroundColor: Colors.teal,
             textColor: Colors.white,
-            fontSize: 16.0
-        );
+            fontSize: 16.0);
       });
     });
     /*location.onLocationChanged.listen((LocationData currentLocation) {
@@ -379,11 +411,12 @@ class _editfarmState extends State<editfarm> {
   @override
   Widget build(BuildContext context) {
     // Permission.openSettings;
-    return WillPopScope(onWillPop: ()async{
-      //print('poooooooooooooped');
-      Navigator.of(context).pushReplacement(goToFarms());
-      return false;
-    },
+    return WillPopScope(
+      onWillPop: () async {
+        //print('poooooooooooooped');
+        Navigator.of(context).pushReplacement(goToFarms());
+        return false;
+      },
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
@@ -392,9 +425,9 @@ class _editfarmState extends State<editfarm> {
             children: [
               Text('إروي'),
               Image(
-                  image: AssetImage('assets/images/logo.png'),
-                  fit: BoxFit.contain,
-                height: AppBar().preferredSize.height -5,
+                image: AssetImage('assets/images/logo.png'),
+                fit: BoxFit.contain,
+                height: AppBar().preferredSize.height - 5,
               )
             ],
           ),
@@ -403,98 +436,10 @@ class _editfarmState extends State<editfarm> {
                 gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: <Color>[Color(0xff08aeea), Color(0xff2af598)])
-            ),
+                    colors: <Color>[Color(0xff08aeea), Color(0xff2af598)])),
           ),
         ),
-        drawer: Drawer(
-          // Add a ListView to the drawer. This ensures the user can scroll
-          // through the options in the drawer if there isn't enough vertical
-          // space to fit everything.
-          child: ListView(
-            // Important: Remove any padding from the ListView.
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              DrawerHeader(
-                child: Image(
-                  image: AssetImage('assets/images/logo.png'),
-                  width: 150,
-                ),
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.home,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('مزرعتي'),
-                  ],
-                ),
-                onTap: () {
-                  //Navigator.pop(context);
-                  Navigator.of(context).pushReplacement(goToFarms());
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.info,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('اعرف عنا'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToAboutUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.solidQuestionCircle,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('المقترحات'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToContactUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.wpforms,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('معلومات ارشادية'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToExtraInfo());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.signOutAlt,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('تسجيل الخروج'),
-                  ],
-                ),
-                onTap: () async {
-                  SharedPreferences prefs = await SharedPreferences.getInstance();
-                  String cookie = (prefs.getString('cookie') ?? '');
-                  final user = await  logoutASYNC(cookie);
-                  if(user == false){
-                    Navigator.pop(context);
-                    print('logout failed');
-                  }else{
-                    print('logged out');
-                    Navigator.of(context).pushReplacement(goToLogin());
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
+        drawer: SideMenu(currentRoute: '/editfarm'),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
             //Navigator.pop(context);
@@ -513,10 +458,14 @@ class _editfarmState extends State<editfarm> {
             child: SingleChildScrollView(
                 scrollDirection: Axis.vertical,
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height)/*.tightFor(
+                  constraints: BoxConstraints(
+                      minHeight: MediaQuery.of(context)
+                          .size
+                          .height) /*.tightFor(
                   height: MediaQuery.of(context).size.height,//Height of screen
-                )*/,
-                  child:Column(
+                )*/
+                  ,
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: <Widget>[
                       Container(
@@ -528,492 +477,907 @@ class _editfarmState extends State<editfarm> {
                               color: Colors.grey.withOpacity(0.5),
                               spreadRadius: 5,
                               blurRadius: 7,
-                              offset: Offset(0, 3), // changes position of shadow
+                              offset:
+                                  Offset(0, 3), // changes position of shadow
                             ),
                           ],
                         ),
                         padding: EdgeInsets.all(10),
-                        margin: EdgeInsets.symmetric(horizontal: 25,vertical: 15),
+                        margin:
+                            EdgeInsets.symmetric(horizontal: 25, vertical: 15),
                         child: FutureBuilder<detailedfarmObject>(
-                          future: fetchDetailedFarms(http.Client(),farmid),
+                          future: fetchDetailedFarms(http.Client(), farmid),
                           builder: (context, snapshot) {
                             // if (snapshot.hasError) {
                             //   WidgetsBinding.instance.addPostFrameCallback((_) {
                             //     Navigator.of(context).pushReplacement(goToLogin());
                             //   });
                             // }
-                            print("kkk nerma "+snapshot.error.toString());
-                            if(snapshot.hasData && !addedInitialData){
+                            print("kkk nerma " + snapshot.error.toString());
+                            if (snapshot.hasData && !addedInitialData) {
                               addedInitialData = true;
                               salty = snapshot.data?.salty! ?? false;
                               government = snapshot.data?.government;
                               farmname = snapshot.data?.name;
                               soiltype = snapshot.data?.soiltype;
-                              dischargeRate = double.tryParse(snapshot.data!.dischargerate ?? '0') ?? 0.0;
+                              dischargeRate = double.tryParse(
+                                      snapshot.data!.dischargerate ?? '0') ??
+                                  0.0;
 
                               dischargeUnit = 'متر مكعب/ساعة';
-                              gasprice = double.tryParse(snapshot.data!.gasprice??'0')??0.0;
-                              gasusage = double.tryParse(snapshot.data!.gasuseage??'0')??0.0;
-                              Lat = snapshot.data?.lat!??0.0;
-                              Lng = snapshot.data?.lng! ??0.0;
-                              markers.update(MarkerId('marker_id_1'), (value) => Marker(
-                                markerId: MarkerId('marker_id_1'),
-                                position: LatLng(Lat, Lng),
-                                infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
-                                onTap: () {
-                                  //_onMarkerTapped(markerId);
-                                  print('Marker Tapped');
-                                },
-                                onDragEnd: (LatLng position) {
-                                  print('Drag Ended');
-                                },
-                              ));
+                              gasprice = double.tryParse(
+                                      snapshot.data!.gasprice ?? '0') ??
+                                  0.0;
+                              gasusage = double.tryParse(
+                                      snapshot.data!.gasuseage ?? '0') ??
+                                  0.0;
+                              Lat = snapshot.data?.lat! ?? 0.0;
+                              Lng = snapshot.data?.lng! ?? 0.0;
+                              markers.update(
+                                  MarkerId('marker_id_1'),
+                                  (value) => Marker(
+                                        markerId: MarkerId('marker_id_1'),
+                                        position: LatLng(Lat, Lng),
+                                        infoWindow: InfoWindow(
+                                            title: 'marker_id_1', snippet: '*'),
+                                        onTap: () {
+                                          //_onMarkerTapped(markerId);
+                                          print('Marker Tapped');
+                                        },
+                                        onDragEnd: (LatLng position) {
+                                          print('Drag Ended');
+                                        },
+                                      ));
                             }
                             return !snapshot.hasData
-                                ? Center(child: CircularProgressIndicator()):
-                            Form(
-                              key: formkey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: <Widget>[
-                                  Image(image: AssetImage('assets/images/farmer.png'), height: 150,),
-                                  Text('أضافة مزرعة جديدة',style: TextStyle(fontSize: 25),),
-                                  SizedBox(height: 10),
-                                  Text('برجاء اختيار المحافظة اولاً',style: TextStyle(fontSize: 16,color: Colors.red),),
-                                  SizedBox(height: 10),
-                                  DropdownButtonFormField<String>(
-                                    validator: (String? value){
-                                      if(value == null){
-                                        return "برجاء اختيار المحافظة";
-                                      }
-                                    },
-                                    onSaved: (String? value){
-                                      government = value;
-                                    },
-                                    isExpanded: true,
-                                    value: government,
-                                    hint: Text('اختر المحافظة'),
-                                    icon: Icon(Icons.arrow_drop_down),
-                                    iconSize: 24,
-                                    elevation: 16,
-                                    style: TextStyle(color: Colors.black,fontSize: 20),
-                                    /*underline: Container(
-                                        height: 2,
-                                        color: Color(0xff26a69a),
-                                      ),*/
-                                    onChanged: (String? newValue) {
-                                      setState(() {
-                                        government = newValue;
-                                        if(allGovernments.indexOf(newValue!) == 0) goToTheLocation(alex);
-                                        else if(allGovernments.indexOf(newValue) == 1) goToTheLocation(ismailya);
-                                        else if(allGovernments.indexOf(newValue) == 2) goToTheLocation(aswan);
-                                        else if(allGovernments.indexOf(newValue) == 3) goToTheLocation(asyout);
-                                        else if(allGovernments.indexOf(newValue) == 4) goToTheLocation(luxor);
-                                        else if(allGovernments.indexOf(newValue) == 5) goToTheLocation(redsea);
-                                        else if(allGovernments.indexOf(newValue) == 6) goToTheLocation(beheira);
-                                        else if(allGovernments.indexOf(newValue) == 7) goToTheLocation(benisuef);
-                                        else if(allGovernments.indexOf(newValue) == 8) goToTheLocation(portsaid);
-                                        else if(allGovernments.indexOf(newValue) == 9) goToTheLocation(southsinai);
-                                        else if(allGovernments.indexOf(newValue) == 10) goToTheLocation(giza);
-                                        else if(allGovernments.indexOf(newValue) == 11) goToTheLocation(dakahlia);
-                                        else if(allGovernments.indexOf(newValue) == 12) goToTheLocation(domyat);
-                                        else if(allGovernments.indexOf(newValue) == 13) goToTheLocation(sohag);
-                                        else if(allGovernments.indexOf(newValue) == 14) goToTheLocation(suez);
-                                        else if(allGovernments.indexOf(newValue) == 15) goToTheLocation(sharkia);
-                                        else if(allGovernments.indexOf(newValue) == 16) goToTheLocation(northsinai);
-                                        else if(allGovernments.indexOf(newValue) == 17) goToTheLocation(gharbia);
-                                        else if(allGovernments.indexOf(newValue) == 18) goToTheLocation(fayoum);
-                                        else if(allGovernments.indexOf(newValue) == 19) goToTheLocation(cairo);
-                                        else if(allGovernments.indexOf(newValue) == 20) goToTheLocation(kalyobya);
-                                        else if(allGovernments.indexOf(newValue) == 21) goToTheLocation(qena);
-                                        else if(allGovernments.indexOf(newValue) == 22) goToTheLocation(kafrelsheikh);
-                                        else if(allGovernments.indexOf(newValue) == 23) goToTheLocation(matrouh);
-                                        else if(allGovernments.indexOf(newValue) == 24) goToTheLocation(monofeya);
-                                        else if(allGovernments.indexOf(newValue) == 25) goToTheLocation(menya);
-                                        else if(allGovernments.indexOf(newValue) == 26) goToTheLocation(wadielgedeed);
-
-                                      });
-                                    },
-                                    items: allGovernments
-                                        .map<DropdownMenuItem<String>>((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(value),
-                                            if(allGovernments.indexOf(value) == 0) Image.asset('assets/images/governates/Flag_of_Alexandria.png',height: 30,)
-                                            else if(allGovernments.indexOf(value) == 1) Image.asset('assets/images/governates/Governadorat_d\'Ismailiya.png',height: 30,)
-                                            else if(allGovernments.indexOf(value) == 2) Image.asset('assets/images/governates/Governadorat_d\'Aswan.png',height: 30,)
-                                              else if(allGovernments.indexOf(value) == 3) Image.asset('assets/images/governates/Flag_of_Assiut_Governorate.png',height: 30,)
-                                                else if(allGovernments.indexOf(value) == 4) Image.asset('assets/images/governates/Flag_Egy_Luxor.png',height: 30,)
-                                                  else if(allGovernments.indexOf(value) == 5) Image.asset('assets/images/governates/Governadorat_de_la_mar_Roja.png',height: 30,)
-                                                    else if(allGovernments.indexOf(value) == 6) Image.asset('assets/images/governates/800px-Flag_of_Behira_Govenorate.png',height: 30,)
-                                                      else if(allGovernments.indexOf(value) == 7) Image.asset('assets/images/governates/Governadorat_de_Bani_Suwayf.png',height: 30,)
-                                                        else if(allGovernments.indexOf(value) == 8) Image.asset('assets/images/governates/Flag_of_Port_Said_Governorate.PNG',height: 30,)
-                                                          else if(allGovernments.indexOf(value) == 9) Image.asset('assets/images/governates/Governadorat_de_Sinai_del_sud.png',height: 30,)
-                                                            else if(allGovernments.indexOf(value) == 10) Image.asset('assets/images/governates/Governadorat_de_Gizeh.png',height: 30,)
-                                                              else if(allGovernments.indexOf(value) == 11) Image.asset('assets/images/governates/Governadorat_de_Daqahliya.png',height: 30,)
-                                                                else if(allGovernments.indexOf(value) == 12) Image.asset('assets/images/governates/Flag_of_Damietta_Governorate.png',height: 30,)
-                                                                  else if(allGovernments.indexOf(value) == 13) Image.asset('assets/images/governates/Governadorat_de_Suhaj.png',height: 30,)
-                                                                    else if(allGovernments.indexOf(value) == 14) Image.asset('assets/images/governates/Governadorat_de_Suez.png',height: 30,)
-                                                                      else if(allGovernments.indexOf(value) == 15) Image.asset('assets/images/governates/324px-Flag_of_Ash_Sharqiyah.png',height: 30,)
-                                                                        else if(allGovernments.indexOf(value) == 16) Image.asset('assets/images/governates/Governadorat_de_Sinai-Sinai_del_nord.png',height: 30,)
-                                                                          else if(allGovernments.indexOf(value) == 17) Image.asset('assets/images/governates/Governadorat_de_Gharbiya.png',height: 30,)
-                                                                            else if(allGovernments.indexOf(value) == 18) Image.asset('assets/images/governates/Governadorat_de_Faium.png',height: 30,)
-                                                                              else if(allGovernments.indexOf(value) == 19) Image.asset('assets/images/governates/Flag_of_Cairo.png',height: 30,)
-                                                                                else if(allGovernments.indexOf(value) == 20) Image.asset('assets/images/governates/Flag_of_Qalubiya_Governorate.png',height: 30,)
-                                                                                  else if(allGovernments.indexOf(value) == 21) Image.asset('assets/images/governates/Governadorat_de_Qena_flag.png',height: 30,)
-                                                                                    else if(allGovernments.indexOf(value) == 22) Image.asset('assets/images/governates/Flag_of_Kafr_El-Sheikh_Governorate.png',height: 30,)
-                                                                                      else if(allGovernments.indexOf(value) == 23) Image.asset('assets/images/governates/Matrouh_Governorate-logo.png',height: 30,)
-                                                                                        else if(allGovernments.indexOf(value) == 24) Image.asset('assets/images/governates/Flag_of_Menoufia_Governorate.png',height: 30,)
-                                                                                          else if(allGovernments.indexOf(value) == 25) Image.asset('assets/images/governates/Flag_of_Minya_Governorate.png',height: 30,)
-                                                                                            else if(allGovernments.indexOf(value) == 26) Image.asset('assets/images/governates/Governadorat_de_Wadi_al-Jadid.png',height: 30,)
-                                          ],
+                                ? Center(child: CircularProgressIndicator())
+                                : Form(
+                                    key: formkey,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: <Widget>[
+                                        Image(
+                                          image: AssetImage(
+                                              'assets/images/farmer.png'),
+                                          height: 150,
                                         ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                  SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            Fluttertoast.showToast(
-                                              msg: "جاري نحديد مكانك",
-                                              toastLength: Toast.LENGTH_SHORT,
-                                              gravity: ToastGravity.CENTER,
-                                              timeInSecForIosWeb: 1,
-                                              backgroundColor: Colors.teal,
-                                              textColor: Colors.white,
-                                              fontSize: 16.0,
-                                            );
-                                          });
-                                          GetDeviceLocation();
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Color(0xff26a69a),
+                                        Text(
+                                          'أضافة مزرعة جديدة',
+                                          style: TextStyle(fontSize: 25),
                                         ),
-                                        child: Text(
-                                          'حدد مكاني',
-                                          style: TextStyle(color: Colors.white),
+                                        SizedBox(height: 10),
+                                        Text(
+                                          'برجاء اختيار المحافظة اولاً',
+                                          style: TextStyle(
+                                              fontSize: 16, color: Colors.red),
                                         ),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          movecamera = true;
-                                          setState(() {
-                                            Fluttertoast.showToast(
-                                              msg: "يمكنك الان تحريك الخريطة",
-                                              toastLength: Toast.LENGTH_SHORT,
-                                              gravity: ToastGravity.CENTER,
-                                              timeInSecForIosWeb: 1,
-                                              backgroundColor: Colors.teal,
-                                              textColor: Colors.white,
-                                              fontSize: 16.0,
-                                            );
-                                          });
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Color(0xff26a69a),
-                                        ),
-                                        child: Text(
-                                          'دعني احدد مكاني',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-//Location buttons
-                                  SizedBox(height: 10),
-                                  SizedBox(
-                                    width: MediaQuery.of(context).size.width,  // or use fixed size like 200
-                                    height: MediaQuery.of(context).size.width,
-                                    child: GoogleMap(
-                                      mapType: MapType.normal,
-                                      initialCameraPosition: CameraPosition(
-                                        target: LatLng(Lat, Lng),
-                                        zoom: 7,
-                                      ),
-                                      markers: Set<Marker>.of(markers.values),
-                                      gestureRecognizers: movecamera
-                                          ? {Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer())}
-                                          : <Factory<OneSequenceGestureRecognizer>>{},
-
-                                      onCameraMove: ((_position) => _updatePosition(_position)),
-                                      zoomGesturesEnabled: movecamera,
-                                      zoomControlsEnabled: movecamera,
-                                      onMapCreated: (GoogleMapController controller) {
-                                        _controller.complete(controller);
-                                      },
-                                    ),
-                                  ),//GOOGLE MAP
-                                  SizedBox(height: 10),
-                                  TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                                    initialValue: farmname,
-                                    cursorColor: Color(0xff26a69a),
-                                    decoration: InputDecoration(labelText: 'اسم المزرعة',focusColor: Color(0xff26a69a)),
-                                    validator: (String? value){
-                                      if(value!.isEmpty){
-                                        return "برجاء ادخال اسم المزرعة";
-                                      }
-                                    },
-                                    onSaved: (String? value){
-                                      farmname = value;
-                                    },
-                                  ),
-                                  SizedBox(height: 10),
-                                  DropdownButtonFormField<String>(
-                                    validator: (String? value){
-                                      if(value == null){
-                                        return "برجاء نوع التربة";
-                                      }
-                                    },
-                                    onSaved: (String? value){
-                                      soiltype = value!;
-                                    },
-                                    isExpanded: true,
-                                    value: soiltype,
-                                    icon: Icon(Icons.arrow_drop_down),
-                                    iconSize: 24,
-                                    elevation: 16,
-                                    style: TextStyle(color: Colors.black,fontSize: 18),
-                                    onChanged: (String? newValue) {
-                                      setState(() {
-                                        soiltype = newValue!;
-                                      });
-                                    },
-                                    hint: Text('اختر نوع التربة'),
-                                    items: <String>[ 'رملية', 'سلتية', 'طينية']
-                                        .map<DropdownMenuItem<String>>((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child:  Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(value),
-                                            if(value == 'رملية')
-                                              Image.asset('assets/images/soil/sand.jpg',height: 30,)
-                                            else if(value == 'سلتية')
-                                              Image.asset('assets/images/soil/silt.jpg',height: 30,)
-                                            else if(value == 'طينية')
-                                                Image.asset('assets/images/soil/loam.jpg',height: 30,)
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                                          initialValue: dischargeRate.toString(),
-                                          cursorColor: Color(0xff26a69a),
-                                          decoration: InputDecoration(labelText: 'معدل صرف الطرومبة',focusColor: Color(0xff26a69a)),
-                                          validator: (String? value){
-                                            if(value!.isEmpty){
-                                              return "برجاء ادخال صرف الطرومبة";
+                                        SizedBox(height: 10),
+                                        DropdownButtonFormField<String>(
+                                          validator: (String? value) {
+                                            if (value == null) {
+                                              return "برجاء اختيار المحافظة";
                                             }
                                           },
                                           onSaved: (String? value) {
-                                            double parsedValue = double.tryParse(value ?? '') ?? 0; // Ensure non-null value
-                                            dischargeRate = parsedValue;
-
-                                            if (dischargeUnit == 'حصان') {
-                                              dischargeRate = (dischargeRate! * 10)!; // Ensuring dischargeRate is always non-null
-                                            } else if (dischargeUnit == 'لتر/ثانية') {
-                                              dischargeRate = (dischargeRate! * 3.6)!;
-                                            }
+                                            government = value;
                                           },
-
-
-                                          inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        ),
-                                      ),
-                                      Container(width: 5, color: Colors.transparent),
-                                      Expanded(
-                                        child: DropdownButtonFormField<String>(
-                                          validator: (String? value){
-                                            if(value == null){
-                                              return "برجاء اختيار الوحدة";
-                                            }
-                                          },
-                                          onSaved: (String? value){
-                                            dischargeUnit = value!;
-                                          },
-                                          value: dischargeUnit,
+                                          isExpanded: true,
+                                          value: government,
+                                          hint: Text('اختر المحافظة'),
                                           icon: Icon(Icons.arrow_drop_down),
                                           iconSize: 24,
                                           elevation: 16,
-                                          style: TextStyle(color: Colors.black,fontSize: 16),
+                                          style: TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 20),
+                                          /*underline: Container(
+                                        height: 2,
+                                        color: Color(0xff26a69a),
+                                      ),*/
                                           onChanged: (String? newValue) {
                                             setState(() {
-                                              dischargeUnit = newValue!;
+                                              government = newValue;
+                                              if (allGovernments
+                                                      .indexOf(newValue!) ==
+                                                  0)
+                                                goToTheLocation(alex);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  1)
+                                                goToTheLocation(ismailya);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  2)
+                                                goToTheLocation(aswan);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  3)
+                                                goToTheLocation(asyout);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  4)
+                                                goToTheLocation(luxor);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  5)
+                                                goToTheLocation(redsea);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  6)
+                                                goToTheLocation(beheira);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  7)
+                                                goToTheLocation(benisuef);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  8)
+                                                goToTheLocation(portsaid);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  9)
+                                                goToTheLocation(southsinai);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  10)
+                                                goToTheLocation(giza);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  11)
+                                                goToTheLocation(dakahlia);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  12)
+                                                goToTheLocation(domyat);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  13)
+                                                goToTheLocation(sohag);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  14)
+                                                goToTheLocation(suez);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  15)
+                                                goToTheLocation(sharkia);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  16)
+                                                goToTheLocation(northsinai);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  17)
+                                                goToTheLocation(gharbia);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  18)
+                                                goToTheLocation(fayoum);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  19)
+                                                goToTheLocation(cairo);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  20)
+                                                goToTheLocation(kalyobya);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  21)
+                                                goToTheLocation(qena);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  22)
+                                                goToTheLocation(kafrelsheikh);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  23)
+                                                goToTheLocation(matrouh);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  24)
+                                                goToTheLocation(monofeya);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  25)
+                                                goToTheLocation(menya);
+                                              else if (allGovernments
+                                                      .indexOf(newValue) ==
+                                                  26)
+                                                goToTheLocation(wadielgedeed);
                                             });
                                           },
-                                          hint: Text('اختر الوحدة'),
-                                          items: <String>[ 'متر مكعب/ساعة', 'حصان', 'لتر/ثانية']
-                                              .map<DropdownMenuItem<String>>((String value) {
+                                          items: allGovernments
+                                              .map<DropdownMenuItem<String>>(
+                                                  (String value) {
                                             return DropdownMenuItem<String>(
                                               value: value,
-                                              child: Text(value),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Text(value),
+                                                  if (allGovernments
+                                                          .indexOf(value) ==
+                                                      0)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Alexandria.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      1)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_d\'Ismailiya.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      2)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_d\'Aswan.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      3)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Assiut_Governorate.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      4)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_Egy_Luxor.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      5)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_la_mar_Roja.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      6)
+                                                    Image.asset(
+                                                      'assets/images/governates/800px-Flag_of_Behira_Govenorate.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      7)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Bani_Suwayf.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      8)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Port_Said_Governorate.PNG',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      9)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Sinai_del_sud.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      10)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Gizeh.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      11)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Daqahliya.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      12)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Damietta_Governorate.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      13)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Suhaj.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      14)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Suez.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      15)
+                                                    Image.asset(
+                                                      'assets/images/governates/324px-Flag_of_Ash_Sharqiyah.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      16)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Sinai-Sinai_del_nord.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      17)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Gharbiya.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      18)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Faium.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      19)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Cairo.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      20)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Qalubiya_Governorate.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      21)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Qena_flag.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      22)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Kafr_El-Sheikh_Governorate.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      23)
+                                                    Image.asset(
+                                                      'assets/images/governates/Matrouh_Governorate-logo.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      24)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Menoufia_Governorate.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      25)
+                                                    Image.asset(
+                                                      'assets/images/governates/Flag_of_Minya_Governorate.png',
+                                                      height: 30,
+                                                    )
+                                                  else if (allGovernments
+                                                          .indexOf(value) ==
+                                                      26)
+                                                    Image.asset(
+                                                      'assets/images/governates/Governadorat_de_Wadi_al-Jadid.png',
+                                                      height: 30,
+                                                    )
+                                                ],
+                                              ),
                                             );
                                           }).toList(),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                                          initialValue: gasusage.toString(),
+                                        SizedBox(height: 10),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceAround,
+                                          children: [
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  Fluttertoast.showToast(
+                                                    msg: "جاري نحديد مكانك",
+                                                    toastLength:
+                                                        Toast.LENGTH_SHORT,
+                                                    gravity:
+                                                        ToastGravity.CENTER,
+                                                    timeInSecForIosWeb: 1,
+                                                    backgroundColor:
+                                                        Colors.teal,
+                                                    textColor: Colors.white,
+                                                    fontSize: 16.0,
+                                                  );
+                                                });
+                                                GetDeviceLocation();
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Color(0xff26a69a),
+                                              ),
+                                              child: Text(
+                                                'حدد مكاني',
+                                                style: TextStyle(
+                                                    color: Colors.white),
+                                              ),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                movecamera = true;
+                                                setState(() {
+                                                  Fluttertoast.showToast(
+                                                    msg:
+                                                        "يمكنك الان تحريك الخريطة",
+                                                    toastLength:
+                                                        Toast.LENGTH_SHORT,
+                                                    gravity:
+                                                        ToastGravity.CENTER,
+                                                    timeInSecForIosWeb: 1,
+                                                    backgroundColor:
+                                                        Colors.teal,
+                                                    textColor: Colors.white,
+                                                    fontSize: 16.0,
+                                                  );
+                                                });
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Color(0xff26a69a),
+                                              ),
+                                              child: Text(
+                                                'دعني احدد مكاني',
+                                                style: TextStyle(
+                                                    color: Colors.white),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+//Location buttons
+                                        SizedBox(height: 10),
+                                        SizedBox(
+                                          width: MediaQuery.of(context)
+                                              .size
+                                              .width, // or use fixed size like 200
+                                          height:
+                                              MediaQuery.of(context).size.width,
+                                          child: GoogleMap(
+                                            mapType: MapType.normal,
+                                            initialCameraPosition:
+                                                CameraPosition(
+                                              target: LatLng(Lat, Lng),
+                                              zoom: 7,
+                                            ),
+                                            markers:
+                                                Set<Marker>.of(markers.values),
+                                            gestureRecognizers: movecamera
+                                                ? {
+                                                    Factory<OneSequenceGestureRecognizer>(
+                                                        () =>
+                                                            EagerGestureRecognizer())
+                                                  }
+                                                : <Factory<
+                                                    OneSequenceGestureRecognizer>>{},
+                                            onCameraMove: ((_position) =>
+                                                _updatePosition(_position)),
+                                            zoomGesturesEnabled: movecamera,
+                                            zoomControlsEnabled: movecamera,
+                                            onMapCreated: (GoogleMapController
+                                                controller) {
+                                              _controller.complete(controller);
+                                            },
+                                          ),
+                                        ), //GOOGLE MAP
+                                        SizedBox(height: 10),
+                                        TextFormField(
+                                          style:
+                                              TextStyle(fontFamily: 'OpenSans'),
+                                          initialValue: farmname,
                                           cursorColor: Color(0xff26a69a),
-                                          decoration: InputDecoration(labelText: 'استهلاك الوقود',focusColor: Color(0xff26a69a)),
-                                          inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                          /*keyboardType: TextInputType.number,
+                                          decoration: InputDecoration(
+                                              labelText: 'اسم المزرعة',
+                                              focusColor: Color(0xff26a69a)),
+                                          validator: (String? value) {
+                                            if (value!.isEmpty) {
+                                              return "برجاء ادخال اسم المزرعة";
+                                            }
+                                          },
+                                          onSaved: (String? value) {
+                                            farmname = value;
+                                          },
+                                        ),
+                                        SizedBox(height: 10),
+                                        DropdownButtonFormField<String>(
+                                          validator: (String? value) {
+                                            if (value == null) {
+                                              return "برجاء نوع التربة";
+                                            }
+                                          },
+                                          onSaved: (String? value) {
+                                            soiltype = value!;
+                                          },
+                                          isExpanded: true,
+                                          value: soiltype,
+                                          icon: Icon(Icons.arrow_drop_down),
+                                          iconSize: 24,
+                                          elevation: 16,
+                                          style: TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 18),
+                                          onChanged: (String? newValue) {
+                                            setState(() {
+                                              soiltype = newValue!;
+                                            });
+                                          },
+                                          hint: Text('اختر نوع التربة'),
+                                          items: <String>[
+                                            'رملية',
+                                            'سلتية',
+                                            'طينية'
+                                          ].map<DropdownMenuItem<String>>(
+                                              (String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Text(value),
+                                                  if (value == 'رملية')
+                                                    Image.asset(
+                                                      'assets/images/soil/sand.jpg',
+                                                      height: 30,
+                                                    )
+                                                  else if (value == 'سلتية')
+                                                    Image.asset(
+                                                      'assets/images/soil/silt.jpg',
+                                                      height: 30,
+                                                    )
+                                                  else if (value == 'طينية')
+                                                    Image.asset(
+                                                      'assets/images/soil/loam.jpg',
+                                                      height: 30,
+                                                    )
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceAround,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Expanded(
+                                              child: TextFormField(
+                                                style: TextStyle(
+                                                    fontFamily: 'OpenSans'),
+                                                initialValue:
+                                                    dischargeRate.toString(),
+                                                cursorColor: Color(0xff26a69a),
+                                                decoration: InputDecoration(
+                                                    labelText:
+                                                        'معدل صرف الطرومبة',
+                                                    focusColor:
+                                                        Color(0xff26a69a)),
+                                                validator: (String? value) {
+                                                  if (value!.isEmpty) {
+                                                    return "برجاء ادخال صرف الطرومبة";
+                                                  }
+                                                },
+                                                onSaved: (String? value) {
+                                                  double parsedValue = double
+                                                          .tryParse(
+                                                              value ?? '') ??
+                                                      0; // Ensure non-null value
+                                                  dischargeRate = parsedValue;
+
+                                                  if (dischargeUnit == 'حصان') {
+                                                    dischargeRate =
+                                                        (dischargeRate! *
+                                                            10)!; // Ensuring dischargeRate is always non-null
+                                                  } else if (dischargeUnit ==
+                                                      'لتر/ثانية') {
+                                                    dischargeRate =
+                                                        (dischargeRate! * 3.6)!;
+                                                  }
+                                                },
+                                                inputFormatters: [
+                                                  DecimalTextInputFormatter(
+                                                      decimalRange: 2)
+                                                ],
+                                                keyboardType: TextInputType
+                                                    .numberWithOptions(
+                                                        decimal: true),
+                                              ),
+                                            ),
+                                            Container(
+                                                width: 5,
+                                                color: Colors.transparent),
+                                            Expanded(
+                                              child: DropdownButtonFormField<
+                                                  String>(
+                                                validator: (String? value) {
+                                                  if (value == null) {
+                                                    return "برجاء اختيار الوحدة";
+                                                  }
+                                                },
+                                                onSaved: (String? value) {
+                                                  dischargeUnit = value!;
+                                                },
+                                                value: dischargeUnit,
+                                                icon:
+                                                    Icon(Icons.arrow_drop_down),
+                                                iconSize: 24,
+                                                elevation: 16,
+                                                style: TextStyle(
+                                                    color: Colors.black,
+                                                    fontSize: 16),
+                                                onChanged: (String? newValue) {
+                                                  setState(() {
+                                                    dischargeUnit = newValue!;
+                                                  });
+                                                },
+                                                hint: Text('اختر الوحدة'),
+                                                items: <String>[
+                                                  'متر مكعب/ساعة',
+                                                  'حصان',
+                                                  'لتر/ثانية'
+                                                ].map<DropdownMenuItem<String>>(
+                                                    (String value) {
+                                                  return DropdownMenuItem<
+                                                      String>(
+                                                    value: value,
+                                                    child: Text(value),
+                                                  );
+                                                }).toList(),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        SizedBox(height: 10),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceAround,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Expanded(
+                                              child: TextFormField(
+                                                style: TextStyle(
+                                                    fontFamily: 'OpenSans'),
+                                                initialValue:
+                                                    gasusage.toString(),
+                                                cursorColor: Color(0xff26a69a),
+                                                decoration: InputDecoration(
+                                                    labelText: 'استهلاك الوقود',
+                                                    focusColor:
+                                                        Color(0xff26a69a)),
+                                                inputFormatters: [
+                                                  DecimalTextInputFormatter(
+                                                      decimalRange: 2)
+                                                ],
+                                                keyboardType: TextInputType
+                                                    .numberWithOptions(
+                                                        decimal: true),
+                                                /*keyboardType: TextInputType.number,
                                         inputFormatters: <TextInputFormatter>[
                                           FilteringTextInputFormatter.digitsOnly
                                         ],*/
-                                          onSaved: (String? value){
-                                            gasusage = double.tryParse(value!)!;
-                                            if(gasusage == null)
-                                              gasusage = 0;
-                                          },
+                                                onSaved: (String? value) {
+                                                  gasusage =
+                                                      double.tryParse(value!)!;
+                                                  if (gasusage == null)
+                                                    gasusage = 0;
+                                                },
+                                              ),
+                                            ),
+                                            Container(
+                                                width: 20,
+                                                color: Colors.transparent),
+                                            Text(
+                                              'لتر/ساعة',
+                                              style: TextStyle(fontSize: 20),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      Container(width: 20, color: Colors.transparent),
-                                      Text('لتر/ساعة',style: TextStyle(fontSize: 20),),
-                                    ],
-                                  ),
-                                  SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
-                                          initialValue: gasprice.toString(),
-                                          cursorColor: Color(0xff26a69a),
-                                          decoration: InputDecoration(labelText: 'سعر الوقود',focusColor: Color(0xff26a69a)),
-                                          inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                          onSaved: (String? value){
-                                            gasprice = double.tryParse(value!)!;
-                                            if(gasprice == null)
-                                              gasprice = 0;
-                                          },
+                                        SizedBox(height: 10),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceAround,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Expanded(
+                                              child: TextFormField(
+                                                style: TextStyle(
+                                                    fontFamily: 'OpenSans'),
+                                                initialValue:
+                                                    gasprice.toString(),
+                                                cursorColor: Color(0xff26a69a),
+                                                decoration: InputDecoration(
+                                                    labelText: 'سعر الوقود',
+                                                    focusColor:
+                                                        Color(0xff26a69a)),
+                                                inputFormatters: [
+                                                  DecimalTextInputFormatter(
+                                                      decimalRange: 2)
+                                                ],
+                                                keyboardType: TextInputType
+                                                    .numberWithOptions(
+                                                        decimal: true),
+                                                onSaved: (String? value) {
+                                                  gasprice =
+                                                      double.tryParse(value!)!;
+                                                  if (gasprice == null)
+                                                    gasprice = 0;
+                                                },
+                                              ),
+                                            ),
+                                            Container(
+                                                width: 20,
+                                                color: Colors.transparent),
+                                            Text(
+                                              'جنيه/لتر',
+                                              style: TextStyle(fontSize: 20),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      Container(width: 20, color: Colors.transparent),
-                                      Text('جنيه/لتر',style: TextStyle(fontSize: 20),),
-                                    ],
-                                  ),
-                                  SizedBox(height: 10),
-                                  Container(
-                                    margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
-                                    child: CheckboxListTile(
-                                      title: Text('هل التربة مالحة؟'),
-                                      value: salty,
-                                      onChanged: (newValue) {
-                                        setState(() {
-                                          salty = newValue!;
-                                        });
-                                      },
-                                      controlAffinity: ListTileControlAffinity.leading,  //  <-- leading Checkbox
+                                        SizedBox(height: 10),
+                                        Container(
+                                          margin:
+                                              EdgeInsets.fromLTRB(0, 10, 0, 0),
+                                          child: CheckboxListTile(
+                                            title: Text('هل التربة مالحة؟'),
+                                            value: salty,
+                                            onChanged: (newValue) {
+                                              setState(() {
+                                                salty = newValue!;
+                                              });
+                                            },
+                                            controlAffinity: ListTileControlAffinity
+                                                .leading, //  <-- leading Checkbox
+                                          ),
+                                        ),
+                                        isLoading
+                                            ? Center(
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              )
+                                            : Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceAround,
+                                                children: [
+                                                  ElevatedButton(
+                                                    onPressed: () async {
+                                                      if (!formkey.currentState!
+                                                          .validate()) {
+                                                        // NOT VALID
+                                                        return;
+                                                      }
+                                                      setState(() {
+                                                        isLoading = true;
+                                                        formkey.currentState!
+                                                            .save();
+                                                      });
+
+                                                      SharedPreferences prefs =
+                                                          await SharedPreferences
+                                                              .getInstance();
+                                                      String cookie =
+                                                          (prefs.getString(
+                                                                  'cookie') ??
+                                                              '');
+
+                                                      final user =
+                                                          await editFarmASYNC(
+                                                              farmname!,
+                                                              government!,
+                                                              soiltype!,
+                                                              salty,
+                                                              Lng,
+                                                              Lat,
+                                                              dischargeRate!,
+                                                              gasusage!,
+                                                              gasprice!,
+                                                              farmid,
+                                                              cookie);
+
+                                                      if (user == false) {
+                                                        Fluttertoast.showToast(
+                                                            msg:
+                                                                "حاول مرة اخرى",
+                                                            toastLength: Toast
+                                                                .LENGTH_SHORT,
+                                                            gravity:
+                                                                ToastGravity
+                                                                    .CENTER,
+                                                            timeInSecForIosWeb:
+                                                                1,
+                                                            backgroundColor:
+                                                                Colors.teal,
+                                                            textColor:
+                                                                Colors.white,
+                                                            fontSize: 16.0);
+
+                                                        setState(() {
+                                                          isLoading = false;
+                                                        });
+                                                        print('user = false');
+                                                      } else {
+                                                        Navigator.of(context)
+                                                            .pushReplacement(
+                                                                goToFarms());
+
+                                                        setState(() {
+                                                          isLoading = false;
+                                                        });
+                                                        print('user = true');
+                                                      }
+                                                    },
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Color(0xff26a69a),
+                                                    ),
+                                                    child: Text(
+                                                      'تعديل المزرعة',
+                                                      style: TextStyle(
+                                                          color: Colors.white),
+                                                    ),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () async {
+                                                      showAlertDialog(context);
+                                                    },
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                    child: Text(
+                                                      'مسح المزرعة',
+                                                      style: TextStyle(
+                                                          color: Colors.white),
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                      ],
                                     ),
-                                  ),
-                                  isLoading
-                                      ? Center(
-                                    child: CircularProgressIndicator(),
-                                  ): Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed: () async {
-                                          if (!formkey.currentState!.validate()) { // NOT VALID
-                                            return;
-                                          }
-                                          setState(() {
-                                            isLoading = true;
-                                            formkey.currentState!.save();
-                                          });
-
-                                          SharedPreferences prefs = await SharedPreferences.getInstance();
-                                          String cookie = (prefs.getString('cookie') ?? '');
-
-                                          final user = await editFarmASYNC(
-                                              farmname!, government!, soiltype!, salty, Lng, Lat,
-                                              dischargeRate!, gasusage!, gasprice!, farmid, cookie
-                                          );
-
-                                          if (user == false) {
-                                            Fluttertoast.showToast(
-                                                msg: "حاول مرة اخرى",
-                                                toastLength: Toast.LENGTH_SHORT,
-                                                gravity: ToastGravity.CENTER,
-                                                timeInSecForIosWeb: 1,
-                                                backgroundColor: Colors.teal,
-                                                textColor: Colors.white,
-                                                fontSize: 16.0
-                                            );
-
-                                            setState(() {
-                                              isLoading = false;
-                                            });
-                                            print('user = false');
-                                          } else {
-                                            Navigator.of(context).pushReplacement(goToFarms());
-
-                                            setState(() {
-                                              isLoading = false;
-                                            });
-                                            print('user = true');
-                                          }
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Color(0xff26a69a),
-                                        ),
-                                        child: Text(
-                                          'تعديل المزرعة',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () async {
-                                          showAlertDialog(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        child: Text(
-                                          'مسح المزرعة',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-
-                                ],
-                              ),
-                            );
+                                  );
                           },
                         ),
                       ),
-                      Container(//FOOTER
+                      Container(
+                        //FOOTER
                         padding: EdgeInsets.all(5),
                         decoration: new BoxDecoration(
                           gradient: LinearGradient(
@@ -1021,41 +1385,39 @@ class _editfarmState extends State<editfarm> {
                               begin: const FractionalOffset(0.0, 0.0),
                               end: const FractionalOffset(0.7, 0.0),
                               stops: [0.0, 1.0],
-                              tileMode: TileMode.clamp
-                          ),
+                              tileMode: TileMode.clamp),
                         ),
                         child: Column(
                           children: [
                             Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            Flexible(
-                                child: Image(image: AssetImage('assets/images/msa.png'),
-                                  fit: BoxFit.contain,)
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Flexible(
+                                    child: Image(
+                                  image: AssetImage('assets/images/msa.png'),
+                                  fit: BoxFit.contain,
+                                )),
+                                SizedBox(width: 20),
+                                Flexible(
+                                    child: Image(
+                                  image: AssetImage('assets/images/iwmi.png'),
+                                  fit: BoxFit.contain,
+                                )),
+                                SizedBox(width: 20),
+                                Flexible(
+                                    child: Image(
+                                  image: AssetImage('assets/images/sweri.png'),
+                                  fit: BoxFit.contain,
+                                ))
+                              ],
                             ),
-                            SizedBox(width: 20),
-                            Flexible(
-                                child: Image(image: AssetImage('assets/images/iwmi.png'),
-                                  fit: BoxFit.contain,)
-                            ),
-                            SizedBox(width: 20),
-                            Flexible(
-                                child: Image(image: AssetImage('assets/images/sweri.png'),
-                                  fit: BoxFit.contain,)
-                            )
+                            Image(image: AssetImage('assets/images/WAPOR.jpg'))
                           ],
                         ),
-                            Image(
-                                image: AssetImage('assets/images/WAPOR.jpg')
-                            )
-                          ],
-                        ),
-                      ),//FOOTER
+                      ), //FOOTER
                     ],
                   ),
-                )
-            )
-        ), // This trailing comma makes auto-formatting nicer for build methods.
+                ))), // This trailing comma makes auto-formatting nicer for build methods.
       ),
     );
   }
@@ -1115,12 +1477,7 @@ class _editfarmState extends State<editfarm> {
       },
     );
   }
-
-
 }
-
-
-
 
 class DecimalTextInputFormatter extends TextInputFormatter {
   DecimalTextInputFormatter({required this.decimalRange})
@@ -1130,15 +1487,14 @@ class DecimalTextInputFormatter extends TextInputFormatter {
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, // unused.
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue, // unused.
+    TextEditingValue newValue,
+  ) {
     TextSelection newSelection = newValue.selection;
     String truncated = newValue.text;
     var myDouble = double.tryParse(newValue.text);
 
-    if(myDouble == null && newValue.text.length != 0)
-      return oldValue;
+    if (myDouble == null && newValue.text.length != 0) return oldValue;
     if (decimalRange != null) {
       String value = newValue.text;
 
@@ -1165,27 +1521,25 @@ class DecimalTextInputFormatter extends TextInputFormatter {
   }
 }
 
-
-
-Future<detailedfarmObject> fetchDetailedFarms(http.Client client,int farmid) async {
-
+Future<detailedfarmObject> fetchDetailedFarms(
+    http.Client client, int farmid) async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
-print("object"+farmid.toString()+" "+cookie);
+  print("object" + farmid.toString() + " " + cookie);
   var mydata = jsonEncode({
     'farmid': farmid,
   });
-print("ll"+farmid.toString()+cookie.toString());
+  print("ll" + farmid.toString() + cookie.toString());
   final response = await client.get(
     // Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetFarm'),
-    Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetFarmById?farmid='+farmid.toString()),
+    Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetFarmById?farmid=' +
+        farmid.toString()),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
       'Cookie': cookie,
     },
     // body: mydata,
   );
-
 
   // Use the compute function to run parseFarms in a separate isolate.
   return parseDetailedFarms(response.body);
@@ -1196,11 +1550,11 @@ detailedfarmObject parseDetailedFarms(String responseBody) {
   //final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
   Map<String, dynamic> parsed = jsonDecode(responseBody);
   String tempsoil = '';
-  if(parsed['soiltype'].toString() == 'clay'){
+  if (parsed['soiltype'].toString() == 'clay') {
     tempsoil = 'طينية';
-  }else if(parsed['soiltype'].toString() == 'sandy'){
+  } else if (parsed['soiltype'].toString() == 'sandy') {
     tempsoil = 'رملية';
-  }else if(parsed['soiltype'].toString() == 'silt'){
+  } else if (parsed['soiltype'].toString() == 'silt') {
     tempsoil = 'سلتية';
   }
   var xc = detailedfarmObject(
@@ -1213,16 +1567,14 @@ detailedfarmObject parseDetailedFarms(String responseBody) {
     dischargerate: parsed['dischargerate'].toString(),
     gasuseage: parsed['gasuseage'].toString(),
     gasprice: parsed['gasprice'].toString(),
-     farmId: parsed['farmId'] as int,
-
+    farmId: parsed['farmId'] as int,
   );
   return xc;
 }
 
-
 class detailedfarmObject {
   final String? name;
-  final String ?government;
+  final String? government;
   final String? soiltype;
   final bool? salty;
   final double? lng;
@@ -1232,8 +1584,18 @@ class detailedfarmObject {
   final String? gasprice;
   final int? farmId;
 
-  detailedfarmObject(
-      {this.name, this.government, this.soiltype, this.salty, this.lng, this.lat, this.dischargerate, this.gasuseage, this.gasprice, this.farmId,});
+  detailedfarmObject({
+    this.name,
+    this.government,
+    this.soiltype,
+    this.salty,
+    this.lng,
+    this.lat,
+    this.dischargerate,
+    this.gasuseage,
+    this.gasprice,
+    this.farmId,
+  });
 
   factory detailedfarmObject.fromJson(Map<String, dynamic> json) {
     return detailedfarmObject(
@@ -1250,5 +1612,3 @@ class detailedfarmObject {
     );
   }
 }
-
-

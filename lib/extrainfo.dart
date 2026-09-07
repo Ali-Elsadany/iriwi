@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
@@ -13,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'directory.dart';
+import 'widgets/side_menu.dart';
 
 
 Future<bool> logoutASYNC(String username, String password, String confirmPass, String phone,String cookie) async {
@@ -63,39 +63,78 @@ class extraInfo extends StatefulWidget {
 
 class _extraInfoState extends State<extraInfo> {
   bool checkedValue = false;
-  bool isLoading = false;
+  bool isLoading = true;
+  bool hasError = false;
+  String errorMessage = '';
   String username = '';
   String password = '';
   String confirmPass = '';
   String phone = '';
-  String errorMessage = '';
   late WebViewController _controller;
   GlobalKey<FormState> formkey = GlobalKey<FormState>();
   final TextEditingController _pass = TextEditingController();
-  // _loadHtmlFromAssets() async {
-  //   String fileText = await rootBundle.loadString('assets/extrainfo.html');
-  //   _controller.loadFile( Uri.dataFromString(
-  //       fileText,
-  //       mimeType: 'text/html',
-  //       encoding: Encoding.getByName('utf-8')
-  //   ).toString());
-  // }
-  Future<void> _loadHtmlFromAssets() async {
-    String fileText = await DefaultAssetBundle.of(context).loadString('assets/extrainfo.html');
-    _controller.loadRequest(Uri.dataFromString(
-      fileText,
-      mimeType: 'text/html',
-      encoding: Encoding.getByName('utf-8'),
-    ));
-  }
+
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse('about:blank'));
-    _loadHtmlFromAssets();
+    _initializeWebView();
   }
+
+  Future<void> _initializeWebView() async {
+    try {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (String url) {
+              setState(() {
+                isLoading = true;
+                hasError = false;
+              });
+            },
+            onPageFinished: (String url) {
+              setState(() {
+                isLoading = false;
+              });
+            },
+            onWebResourceError: (WebResourceError error) {
+              setState(() {
+                isLoading = false;
+                hasError = true;
+                errorMessage = 'خطأ في تحميل المحتوى: ${error.description}';
+              });
+            },
+          ),
+        );
+
+      await _loadHtmlFromAssets();
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        hasError = true;
+        errorMessage = 'خطأ في تهيئة الصفحة: $e';
+      });
+    }
+  }
+
+  Future<void> _loadHtmlFromAssets() async {
+    try {
+      String fileText = await DefaultAssetBundle.of(context).loadString('assets/extrainfo.html');
+      
+      await _controller.loadRequest(Uri.dataFromString(
+        fileText,
+        mimeType: 'text/html',
+        encoding: Encoding.getByName('utf-8'),
+      ));
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        hasError = true;
+        errorMessage = 'خطأ في تحميل الملف: $e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -127,93 +166,7 @@ class _extraInfoState extends State<extraInfo> {
             ),
           ),
         ),
-        drawer: Drawer(
-          // Add a ListView to the drawer. This ensures the user can scroll
-          // through the options in the drawer if there isn't enough vertical
-          // space to fit everything.
-          child: ListView(
-            // Important: Remove any padding from the ListView.
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              DrawerHeader(
-                child: Image(
-                  image: AssetImage('assets/images/logo.png'),
-                  width: 150,
-                ),
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.home,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('مزرعتي'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToFarms());
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.info,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('اعرف عنا'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToAboutUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.solidQuestionCircle,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('المقترحات'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToContactUs());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.wpforms,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('معلومات ارشادية'),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pushReplacement(goToExtraInfo());
-                  // Update the state of the app.
-                  // ...
-                },
-              ),
-              ListTile(
-                title: Row(
-                  children: [
-                    Container(child: Center(child: FaIcon(FontAwesomeIcons.signOutAlt,color: Colors.grey[600],)),width: 25,margin: EdgeInsets.fromLTRB(10, 0, 0, 0),),
-                    Text('تسجيل الخروج'),
-                  ],
-                ),
-                onTap: () async {
-                  SharedPreferences prefs = await SharedPreferences.getInstance();
-                  String cookie = (prefs.getString('cookie') ?? '');
-                  final user = await  logoutASYNC(username,password,confirmPass,phone,cookie);
-                  if(user == false){
-                    Navigator.pop(context);
-                    print('logout failed');
-                  }else{
-                    print('logged out');
-                    Navigator.of(context).pushReplacement(goToLogin());
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
+                drawer: SideMenu(currentRoute: '/extrainfo'),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
             Navigator.of(context).pushReplacement(goToFarms());
@@ -226,27 +179,79 @@ class _extraInfoState extends State<extraInfo> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
                 Expanded(
-                  child:WebViewWidget(
-                    controller: _controller,
-                    gestureRecognizers: {
-                      Factory<VerticalDragGestureRecognizer>(
-                            () => VerticalDragGestureRecognizer(),
-                      ),
-                    },
-                  ),
-                  // WebView(
-                  //   gestureRecognizers: Set()
-                  //     ..add(
-                  //       Factory<VerticalDragGestureRecognizer>(
-                  //             () => VerticalDragGestureRecognizer(),
-                  //       ), // or null
-                  //     ),
-                  //   initialUrl: 'about:blank',
-                  //   onWebViewCreated: (WebViewController webViewController) {
-                  //     _controller = webViewController;
-                  //     _loadHtmlFromAssets();
-                  //   },
-                  // ),
+                  child: isLoading 
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xff08aeea)),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'جاري التحميل...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : hasError
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: Colors.red[300],
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'حدث خطأ في التحميل',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red[700],
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                errorMessage,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    isLoading = true;
+                                    hasError = false;
+                                  });
+                                  _loadHtmlFromAssets();
+                                },
+                                child: Text('إعادة المحاولة'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color(0xff08aeea),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : WebViewWidget(
+                          controller: _controller,
+                          gestureRecognizers: {
+                            Factory<VerticalDragGestureRecognizer>(
+                                  () => VerticalDragGestureRecognizer(),
+                            ),
+                          },
+                        ),
                 ),
                 Container(//FOOTER
                   padding: EdgeInsets.all(5),
