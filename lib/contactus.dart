@@ -136,7 +136,7 @@ class _contactUsState extends State<contactUs> {
                                       SizedBox(width: 10,),
                                       Expanded(
                                         child: TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                                           maxLines: 8,
                                           cursorColor: Color(0xff26a69a),
                                           decoration: InputDecoration(labelText: 'اكتب اقتراحك هنا',focusColor: Color(0xff26a69a)),

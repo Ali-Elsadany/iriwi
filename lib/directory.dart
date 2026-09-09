@@ -8,8 +8,27 @@ import 'package:irwi/editfarm.dart';
 import 'package:irwi/extrainfo.dart';
 import 'package:irwi/aboutus.dart';
 import 'package:irwi/contactus.dart';
+import 'package:irwi/pre_login.dart';
 
 import 'login.dart';
+
+Route goToPreLogin() {
+  return PageRouteBuilder(
+    pageBuilder: (context, animation, secondaryAnimation) => preLogin(),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      var begin = Offset(-1.0, 0.0);
+      var end = Offset.zero;
+      var curve = Curves.easeInCirc;
+
+      var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+      return SlideTransition(
+        position: animation.drive(tween),
+        child: child,
+      );
+    },
+  );
+}
 
 Route goToLogin() {
   return PageRouteBuilder(

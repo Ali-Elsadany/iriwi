@@ -995,7 +995,7 @@ class _editfarmState extends State<editfarm> {
                                         SizedBox(height: 10),
                                         TextFormField(
                                           style:
-                                              TextStyle(fontFamily: 'OpenSans'),
+                                              TextStyle(fontFamily: 'IBMPlexSansArabic'),
                                           initialValue: farmname,
                                           cursorColor: Color(0xff26a69a),
                                           decoration: InputDecoration(
@@ -1077,7 +1077,7 @@ class _editfarmState extends State<editfarm> {
                                             Expanded(
                                               child: TextFormField(
                                                 style: TextStyle(
-                                                    fontFamily: 'OpenSans'),
+                                                    fontFamily: 'IBMPlexSansArabic'),
                                                 initialValue:
                                                     dischargeRate.toString(),
                                                 cursorColor: Color(0xff26a69a),
@@ -1171,7 +1171,7 @@ class _editfarmState extends State<editfarm> {
                                             Expanded(
                                               child: TextFormField(
                                                 style: TextStyle(
-                                                    fontFamily: 'OpenSans'),
+                                                    fontFamily: 'IBMPlexSansArabic'),
                                                 initialValue:
                                                     gasusage.toString(),
                                                 cursorColor: Color(0xff26a69a),
@@ -1217,7 +1217,7 @@ class _editfarmState extends State<editfarm> {
                                             Expanded(
                                               child: TextFormField(
                                                 style: TextStyle(
-                                                    fontFamily: 'OpenSans'),
+                                                    fontFamily: 'IBMPlexSansArabic'),
                                                 initialValue:
                                                     gasprice.toString(),
                                                 cursorColor: Color(0xff26a69a),

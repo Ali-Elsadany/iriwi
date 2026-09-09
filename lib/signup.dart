@@ -120,7 +120,7 @@ class _signupState extends State<signup> {
                               textAlign: TextAlign.center,
                             ),
                             TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                               decoration: InputDecoration(labelText: 'الاسم'),
                               validator: (String? value){
                                 if(value!.isEmpty){
@@ -132,7 +132,7 @@ class _signupState extends State<signup> {
                               },
                             ),
                             TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                               decoration: InputDecoration(labelText: 'رقم الهاتف'),
                               validator: (String? value){
                                 if(value!.isEmpty){
@@ -146,7 +146,7 @@ class _signupState extends State<signup> {
                               },
                             ),
                             TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                               controller: _pass,
                               decoration: InputDecoration(labelText: 'كلمة السر'),
                               obscureText: true,
@@ -162,7 +162,7 @@ class _signupState extends State<signup> {
                               },
                             ),
                             TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                               decoration: InputDecoration(labelText: 'تأكيد كلمة السر'),
                               obscureText: true,
                               validator: (String? value){

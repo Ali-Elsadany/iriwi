@@ -103,7 +103,7 @@ class _loginState extends State<login> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
                             TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                               decoration: InputDecoration(labelText: 'رقم الهاتف'),
                               validator: (String? value){
                                 if(value!.isEmpty){
@@ -115,7 +115,7 @@ class _loginState extends State<login> {
                               },
                             ),
                             TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                               decoration: InputDecoration(labelText: 'كلمة السر'),
                               obscureText: true,
                               validator: (String? value){

@@ -583,7 +583,7 @@ class _addfarmState extends State<addfarm> {
                               ),//GOOGLE MAP
                               SizedBox(height: 10),
                               TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                                 cursorColor: Color(0xff26a69a),
                                 decoration: InputDecoration(labelText: 'اسم المزرعة',focusColor: Color(0xff26a69a)),
                                 validator: (String? value){
@@ -642,7 +642,7 @@ class _addfarmState extends State<addfarm> {
                                 children: [
                                   Expanded(
                                     child: TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                                       cursorColor: Color(0xff26a69a),
                                       decoration: InputDecoration(labelText: 'معدل صرف الطرومبة',focusColor: Color(0xff26a69a)),
                                       validator: (String? value){
@@ -705,7 +705,7 @@ class _addfarmState extends State<addfarm> {
                                 children: [
                                   Expanded(
                                     child: TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                                       cursorColor: Color(0xff26a69a),
                                       decoration: InputDecoration(labelText: 'استهلاك الوقود',focusColor: Color(0xff26a69a)),
                                       inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
@@ -732,7 +732,7 @@ class _addfarmState extends State<addfarm> {
                                 children: [
                                   Expanded(
                                     child: TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                                       cursorColor: Color(0xff26a69a),
                                       decoration: InputDecoration(labelText: 'سعر الوقود',focusColor: Color(0xff26a69a)),
                                       inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],

@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'farms.dart';
 import 'login.dart';
 import 'signup.dart';
+import 'pre_login.dart';
 
 
 Future<bool> checkIfLoggedIn(String cookie) async {
@@ -92,6 +93,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'اروي',
+      debugShowCheckedModeBanner: false,
       localizationsDelegates: [
         GlobalCupertinoLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -111,16 +113,17 @@ class MyApp extends StatelessWidget {
         // or simply save your changes to "hot reload" in a Flutter IDE).
         // Notice that the counter didn't reset back to zero; the application
         // is not restarted.
-        fontFamily: 'numbers',
+        fontFamily: 'IBMPlexSansArabic',
         primarySwatch: Colors.teal,
         // This makes the visual density adapt to the platform that you run
         // the app on. For desktop platforms, the controls will be smaller and
         // closer together (more dense) than on mobile platforms.
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      initialRoute: loggedin ? 'farms': 'login',
+      initialRoute: loggedin ? 'farms': 'pre_login',
       //home: MyHomePage(title: 'Flutter Demo Home Page'),
       routes: {
+        'pre_login': (context) => preLogin(),
         'login': (context) => login(),
         'signup': (context) => signup(),
         'farms': (context) => farms(),
@@ -176,11 +179,11 @@ class _MyHomePageState extends State<MyHomePage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                     decoration: InputDecoration(labelText: 'رقم الهاتف'),
                   ),
                   TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                     decoration: InputDecoration(labelText: 'كلمة السر'),
                   ),
                   Container(

@@ -3855,7 +3855,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                   child: Column(
                     children: [
                       TextFormField(
-                        style: TextStyle(fontFamily: 'OpenSans'),
+                        style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                         //initialValue: 'a7a ya gedy',
                         controller: plantingDateController,
                         cursorColor: Color(0xff26a69a),
@@ -3932,7 +3932,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                     child: Column(
                       children: [
                         TextFormField(
-                          style: TextStyle(fontFamily: 'OpenSans'),
+                          style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                           //initialValue: 'a7a ya gedy',
                           controller: lastIrrigationDateController,
                           cursorColor: Color(0xff26a69a),
@@ -4046,7 +4046,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                     child: Column(
                       children: [
                         TextFormField(
-                          style: TextStyle(fontFamily: 'OpenSans'),
+                          style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                           //initialValue: 'a7a ya gedy',
                           cursorColor: Color(0xff26a69a),
                                   decoration: InputDecoration(
@@ -4110,7 +4110,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                 ],
               ),
               TextFormField(
-                style: TextStyle(fontFamily: 'OpenSans'),
+                style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                 //initialValue: 'a7a ya gedy',
                 cursorColor: Color(0xff26a69a),
                         decoration: InputDecoration(
@@ -4127,7 +4127,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                       ),
                       if (rice)
             TextFormField(
-        style: TextStyle(fontFamily: 'OpenSans'),
+        style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
         //initialValue: 'a7a ya gedy',
         cursorColor: Color(0xff26a69a),
                           decoration: InputDecoration(
@@ -4144,7 +4144,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
                         ),
                       if (rice)
     TextFormField(
-      style: TextStyle(fontFamily: 'OpenSans'),
+      style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
       //initialValue: 'a7a ya gedy',
       cursorColor: Color(0xff26a69a),
                           decoration: InputDecoration(
@@ -4293,7 +4293,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
     //                   child: Column(
     //                     children: [
     //                       TextFormField(
-    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                           style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
     //                         //initialValue: 'a7a ya gedy',
     //                         controller: plantingDateController,
     //                         cursorColor: Color(0xff26a69a),
@@ -4358,7 +4358,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
     //                   child: Column(
     //                     children: [
     //                       TextFormField(
-    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                           style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
     //                         //initialValue: 'a7a ya gedy',
     //                         controller: lastIrrigationDateController,
     //                         cursorColor: Color(0xff26a69a),
@@ -4464,7 +4464,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
     //                   child: Column(
     //                     children: [
     //                       TextFormField(
-    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                           style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
     //                         //initialValue: 'a7a ya gedy',
     //                         cursorColor: Color(0xff26a69a),
     //                         decoration: InputDecoration(labelText: 'المساحة المزروعة',focusColor: Color(0xff26a69a)),
@@ -4521,7 +4521,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
     //               ],
     //             ),
     //             TextFormField(
-    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                           style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
     //               //initialValue: 'a7a ya gedy',
     //               cursorColor: Color(0xff26a69a),
     //               decoration: InputDecoration(labelText: 'عدد ساعات رية الزراعه',focusColor: Color(0xff26a69a)),
@@ -4533,7 +4533,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
     //             ),
     //             if(rice)
     //             TextFormField(
-    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                           style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
     //               //initialValue: 'a7a ya gedy',
     //               cursorColor: Color(0xff26a69a),
     //               decoration: InputDecoration(labelText: 'عدد ساعات ري المشتل',focusColor: Color(0xff26a69a)),
@@ -4545,7 +4545,7 @@ class _AddFarmCropState extends State<AddFarmCropDialog> {
     //             ),
     //             if(rice)
     //             TextFormField(
-    //                           style: TextStyle(fontFamily: 'OpenSans'),
+    //                           style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
     //               //initialValue: 'a7a ya gedy',
     //               cursorColor: Color(0xff26a69a),
     //               decoration: InputDecoration(labelText: 'عدد ساعات طفي الشراقي',focusColor: Color(0xff26a69a)),
@@ -4780,7 +4780,7 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                       child: Column(
                         children: [
                           TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                             //initialValue: 'a7a ya gedy',
                             controller: lastIrrigationDateController,
                             cursorColor: Color(0xff26a69a),
@@ -4858,7 +4858,7 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                       child: Column(
                         children: [
                           TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                             initialValue: area,
                             cursorColor: Color(0xff26a69a),
                                   decoration: InputDecoration(
@@ -4922,7 +4922,7 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                   ],
                 ),
                 TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                   initialValue: initialIrrigationHours,
                   cursorColor: Color(0xff26a69a),
                         decoration: InputDecoration(
@@ -4939,7 +4939,7 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                       ),
                       if (rice)
                   TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                     initialValue: mashtal,
                     cursorColor: Color(0xff26a69a),
                           decoration: InputDecoration(
@@ -4956,7 +4956,7 @@ class _EditFarmCropState extends State<EditFarmCropDialog> {
                         ),
                       if (rice)
                   TextFormField(
-                              style: TextStyle(fontFamily: 'OpenSans'),
+                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
                     initialValue: shara2y,
                     cursorColor: Color(0xff26a69a),
                           decoration: InputDecoration(
