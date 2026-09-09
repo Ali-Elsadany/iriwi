@@ -11,7 +11,7 @@ class _preLoginState extends State<preLogin> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffE7FBE5),
+      backgroundColor: const Color(0xffd0fccd),
       body: SafeArea(
         child: Stack(
           children: [
