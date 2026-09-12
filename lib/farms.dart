@@ -206,6 +206,16 @@ class _farmsState extends State<farms> {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
+
+                                      const Text(
+                                        'مزارعي',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xff1C1C1C),
+                                        ),
+                                        textAlign: TextAlign.right,
+                                      ),
                                       OutlinedButton.icon(
                                         onPressed: () {
                                           Navigator.of(context).pushReplacement(goToAddFarm());
@@ -226,15 +236,6 @@ class _farmsState extends State<farms> {
                                             color: Color(0xff006837),
                                           ),
                                         ),
-                                      ),
-                                      const Text(
-                                        'مزارعي',
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xff1C1C1C),
-                                        ),
-                                        textAlign: TextAlign.right,
                                       ),
                                     ],
                                   ),
@@ -418,22 +419,6 @@ class _farmsState extends State<farms> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Left: Weather info
-              Row(
-                children: const [
-                  Text(
-                    '33° مشمس',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xff777777),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(Icons.wb_sunny_rounded, color: Colors.amber, size: 20),
-                ],
-              ),
-
               // Right: Farm Title & Location Pin
               GestureDetector(
                 onTap: () {
@@ -442,7 +427,7 @@ class _farmsState extends State<farms> {
                   }
                 },
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       myfarm.name ?? 'مزرعة',
@@ -471,6 +456,22 @@ class _farmsState extends State<farms> {
                   ],
                 ),
               ),
+              // Left: Weather info
+              Row(
+                children: const [
+                  Text(
+                    '33° مشمس',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xff777777),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(Icons.wb_sunny_rounded, color: Colors.amber, size: 20),
+                ],
+              ),
+
             ],
           ),
 
@@ -582,25 +583,118 @@ class _farmsState extends State<farms> {
   }
 }
 
-// API endpoint: https://irwicrop.com/Home/RemoteDataSource_GetUserFarms
+// API endpoint: https://irwicrop.com/Home/farms
 Future<List<farmObject>> fetchFarms(http.Client client) async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String cookie = (prefs.getString('cookie') ?? '');
-  final response = await client.get(
-    Uri.parse('https://irwicrop.com/Home/RemoteDataSource_GetUserFarms'),
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie': cookie,
-    },
-  );
-  print("Farms response: " + response.body.toString());
 
-  return compute(parseFarms, response.body);
+  try {
+    Map<String, String> headers = <String, String>{
+      'Content-Type': 'application/json; charset=UTF-8',
+    };
+    if (cookie.isNotEmpty) {
+      headers['Cookie'] = cleanCookieHeader(cookie);
+    }
+
+    final response = await client.get(
+      Uri.parse('https://irwicrop.com/Home/farms'),
+      headers: headers,
+    );
+
+    print("Farms response status: ${response.statusCode}, body length: ${response.body.length}");
+
+    if (response.statusCode == 200) {
+      return await compute(parseFarms, response.body);
+    }
+  } catch (e) {
+    print("Error fetching farms: $e");
+  }
+
+  return [];
+}
+
+String cleanCookieHeader(String setCookieHeader) {
+  if (setCookieHeader.isEmpty) return '';
+
+  final List<String> validCookies = [];
+  final parts = setCookieHeader.split(',');
+
+  for (var part in parts) {
+    final cookiePair = part.split(';').first.trim();
+    if (cookiePair.contains('=') && !cookiePair.endsWith('=')) {
+      validCookies.add(cookiePair);
+    }
+  }
+
+  return validCookies.isNotEmpty ? validCookies.join('; ') : setCookieHeader;
 }
 
 List<farmObject> parseFarms(String responseBody) {
-  final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
-  return parsed.map<farmObject>((json) => farmObject.fromJson(json)).toList();
+  if (responseBody.trim().isEmpty) return [];
+
+  // 1. Try JSON parsing
+  try {
+    final decoded = jsonDecode(responseBody);
+    if (decoded is List) {
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map<farmObject>((json) => farmObject.fromJson(json))
+          .toList();
+    } else if (decoded is Map<String, dynamic>) {
+      if (decoded['data'] is List) {
+        return (decoded['data'] as List)
+            .whereType<Map<String, dynamic>>()
+            .map<farmObject>((json) => farmObject.fromJson(json))
+            .toList();
+      } else if (decoded['farms'] is List) {
+        return (decoded['farms'] as List)
+            .whereType<Map<String, dynamic>>()
+            .map<farmObject>((json) => farmObject.fromJson(json))
+            .toList();
+      }
+    }
+  } catch (_) {
+    // Not a JSON response, fall through to HTML parser
+  }
+
+  // 2. Parse HTML cards from /Home/farms response by splitting HTML by col divs
+  final List<farmObject> list = [];
+  final farmLinkRegExp = RegExp(r'farmcrops/(\d+)', caseSensitive: false);
+  final h5RegExp = RegExp(r'<h5>\s*([^<]+?)\s*</h5>', caseSensitive: false);
+  final pRegExp = RegExp(r'<p>\s*([^<]+?)\s*</p>', caseSensitive: false);
+
+  final sections = responseBody.split(RegExp(r'<div\s+class="[^"]*col', caseSensitive: false));
+
+  for (final section in sections) {
+    final idMatch = farmLinkRegExp.firstMatch(section);
+    final nameMatch = h5RegExp.firstMatch(section);
+
+    if (idMatch != null && nameMatch != null) {
+      final farmId = int.tryParse(idMatch.group(1) ?? '');
+      final name = nameMatch.group(1)?.trim() ?? '';
+
+      String gov = '';
+      final pMatches = pRegExp.allMatches(section);
+      for (final pMatch in pMatches) {
+        final pText = pMatch.group(1)?.trim() ?? '';
+        if (pText.isNotEmpty && !pText.contains('عدد المحاصيل') && pText != name) {
+          gov = pText;
+          break;
+        }
+      }
+
+      if (farmId != null && name.isNotEmpty) {
+        list.add(farmObject(
+          farmId: farmId,
+          name: name,
+          government: gov,
+        ));
+      }
+    }
+  }
+
+  print("Parsed HTML farms count: ${list.length}");
+  return list;
 }
 
 class farmObject {
@@ -633,6 +727,13 @@ class farmObject {
       farmId: json['farmId'] as int?,
       government: json['government'] as String?,
       name: json['name'] as String?,
+      soiltype: json['soiltype'] as String?,
+      salty: json['salty'] as bool?,
+      lng: (json['lng'] as num?)?.toDouble(),
+      lat: (json['lat'] as num?)?.toDouble(),
+      dischargerate: (json['dischargerate'] as num?)?.toInt(),
+      gasuseage: (json['gasuseage'] as num?)?.toInt(),
+      gasprice: (json['gasprice'] as num?)?.toInt(),
     );
   }
 }
