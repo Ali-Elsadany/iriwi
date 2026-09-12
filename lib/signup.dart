@@ -584,7 +584,7 @@ class _signupState extends State<signup> {
                                                       mainAxisAlignment: MainAxisAlignment.center,
                                                       children: const [
                                                         Text(
-                                                          'أوافق على الشروط و إنشاء حساب',
+                                                          'إنشاء حساب',
                                                           style: TextStyle(
                                                             fontSize: 15,
                                                             fontWeight: FontWeight.bold,
