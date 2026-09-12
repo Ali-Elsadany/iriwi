@@ -143,12 +143,48 @@ class _addfarmState extends State<addfarm> {
     'محافظة الوادي الجديد',
   ];
 
+  CameraPosition getCameraForGovernment(String? gov) {
+    if (gov == null) return cairo;
+    int index = allGovernments.indexOf(gov);
+    switch (index) {
+      case 0: return const CameraPosition(target: LatLng(30.8761, 29.7426), zoom: 12);
+      case 1: return const CameraPosition(target: LatLng(30.5831, 32.2654), zoom: 12);
+      case 2: return const CameraPosition(target: LatLng(23.6966, 32.7181), zoom: 12);
+      case 3: return const CameraPosition(target: LatLng(27.2134, 31.4456), zoom: 12);
+      case 4: return const CameraPosition(target: LatLng(25.3944, 32.4920), zoom: 12);
+      case 5: return const CameraPosition(target: LatLng(24.6826, 34.1532), zoom: 10);
+      case 6: return const CameraPosition(target: LatLng(30.8481, 30.3436), zoom: 12);
+      case 7: return const CameraPosition(target: LatLng(28.8939, 31.4456), zoom: 12);
+      case 8: return const CameraPosition(target: LatLng(31.0759, 32.2654), zoom: 12);
+      case 9: return const CameraPosition(target: LatLng(29.3102, 34.1532), zoom: 10);
+      case 10: return const CameraPosition(target: LatLng(28.7666, 29.2321), zoom: 11);
+      case 11: return const CameraPosition(target: LatLng(31.1656, 31.4913), zoom: 12);
+      case 12: return const CameraPosition(target: LatLng(31.3626, 31.6739), zoom: 12);
+      case 13: return const CameraPosition(target: LatLng(26.6938, 32.1746), zoom: 12);
+      case 14: return const CameraPosition(target: LatLng(29.3682, 32.1746), zoom: 12);
+      case 15: return const CameraPosition(target: LatLng(30.7327, 31.7195), zoom: 12);
+      case 16: return const CameraPosition(target: LatLng(30.2824, 33.6176), zoom: 11);
+      case 17: return const CameraPosition(target: LatLng(30.8754, 31.0335), zoom: 12);
+      case 18: return const CameraPosition(target: LatLng(29.3565, 30.6200), zoom: 12);
+      case 19: return const CameraPosition(target: LatLng(30.0444, 31.2350), zoom: 12);
+      case 20: return const CameraPosition(target: LatLng(30.3292, 31.2168), zoom: 12);
+      case 21: return const CameraPosition(target: LatLng(26.2346, 32.9888), zoom: 12);
+      case 22: return const CameraPosition(target: LatLng(31.3085, 30.8039), zoom: 12);
+      case 23: return const CameraPosition(target: LatLng(29.5696, 26.4194), zoom: 10);
+      case 24: return const CameraPosition(target: LatLng(30.5972, 30.9876), zoom: 12);
+      case 25: return const CameraPosition(target: LatLng(28.2847, 30.5279), zoom: 12);
+      case 26: return const CameraPosition(target: LatLng(24.5456, 27.1735), zoom: 10);
+      default: return cairo;
+    }
+  }
+
   void _updatePosition(CameraPosition _position) {
     markers.update(
       const MarkerId('marker_id_1'),
       (value) => Marker(
         markerId: const MarkerId('marker_id_1'),
         position: LatLng(_position.target.latitude, _position.target.longitude),
+        draggable: true,
       ),
     );
     Lat = _position.target.latitude;
@@ -174,6 +210,7 @@ class _addfarmState extends State<addfarm> {
           zoom: 15,
         );
         goToTheLocation(userlocation);
+        _updatePosition(userlocation);
         Fluttertoast.showToast(
           msg: "تم تحديد مكانك بنجاح",
           toastLength: Toast.LENGTH_SHORT,
@@ -187,102 +224,133 @@ class _addfarmState extends State<addfarm> {
   }
 
   void _showMapDialog() {
+    final targetCamera = getCameraForGovernment(government);
+    Lat = targetCamera.target.latitude;
+    Lng = targetCamera.target.longitude;
+
+    markers[const MarkerId('marker_id_1')] = Marker(
+      markerId: const MarkerId('marker_id_1'),
+      position: targetCamera.target,
+      draggable: true,
+    );
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Color(0xff1C1C1C), size: 24),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Text(
-                    'تغيير المكان',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xff1C1C1C)),
-                  ),
-                ],
+        return StatefulBuilder(
+          builder: (context, setMapState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.78,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      GoogleMap(
-                        mapType: MapType.normal,
-                        initialCameraPosition: cairo,
-                        myLocationEnabled: true,
-                        myLocationButtonEnabled: false,
-                        markers: Set<Marker>.of(markers.values),
-                        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                          Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
-                        },
-                        onCameraMove: ((_position) => _updatePosition(_position)),
-                        zoomGesturesEnabled: true,
-                        zoomControlsEnabled: true,
-                        onMapCreated: (GoogleMapController controller) {
-                          if (!_controller.isCompleted) {
-                            _controller.complete(controller);
-                          }
-                        },
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Color(0xff1C1C1C), size: 24),
+                        onPressed: () => Navigator.pop(context),
                       ),
-
-                      // Floating My Location Target Button
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: FloatingActionButton.small(
-                          heroTag: 'myLocationFab',
-                          backgroundColor: Colors.white,
-                          elevation: 4,
-                          onPressed: () {
-                            GetDeviceLocation();
-                          },
-                          child: const Icon(
-                            Icons.my_location_rounded,
-                            color: Color(0xff006837),
-                            size: 22,
-                          ),
-                        ),
+                      const Text(
+                        'تحديد موقع المزرعة',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xff1C1C1C)),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    GetDeviceLocation();
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff006837),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        children: [
+                          GoogleMap(
+                            mapType: MapType.hybrid,
+                            initialCameraPosition: targetCamera,
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: false,
+                            markers: Set<Marker>.of(markers.values),
+                            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                              Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+                            },
+                            onTap: (LatLng position) {
+                              setMapState(() {
+                                _updatePosition(CameraPosition(target: position));
+                              });
+                            },
+                            onCameraMove: (_position) {
+                              setMapState(() {
+                                _updatePosition(_position);
+                              });
+                            },
+                            zoomGesturesEnabled: true,
+                            zoomControlsEnabled: true,
+                            scrollGesturesEnabled: true,
+                            rotateGesturesEnabled: true,
+                            onMapCreated: (GoogleMapController controller) {
+                              if (!_controller.isCompleted) {
+                                _controller.complete(controller);
+                              }
+                            },
+                          ),
+
+                          // Floating My Location Target Button
+                          Positioned(
+                            top: 12,
+                            right: 12,
+                            child: FloatingActionButton.small(
+                              heroTag: 'myLocationFab',
+                              backgroundColor: Colors.white,
+                              elevation: 4,
+                              onPressed: () {
+                                GetDeviceLocation();
+                              },
+                              child: const Icon(
+                                Icons.my_location_rounded,
+                                color: Color(0xff006837),
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  icon: const Icon(Icons.location_on_outlined, color: Colors.white, size: 20),
-                  label: const Text(
-                    'تغيير المكان',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Fluttertoast.showToast(
+                          msg: "تم تحديد موقع المزرعة بنجاح",
+                          toastLength: Toast.LENGTH_SHORT,
+                          gravity: ToastGravity.CENTER,
+                          backgroundColor: const Color(0xff006837),
+                          textColor: Colors.white,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff006837),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
+                      label: const Text(
+                        'تأكيد المكان',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -526,6 +594,17 @@ class _addfarmState extends State<addfarm> {
                                   height: 48,
                                   child: OutlinedButton.icon(
                                     onPressed: () {
+                                      if (government == null || government!.trim().isEmpty) {
+                                        Fluttertoast.showToast(
+                                          msg: "برجاء اختيار المحافظة أولاً",
+                                          toastLength: Toast.LENGTH_SHORT,
+                                          gravity: ToastGravity.CENTER,
+                                          backgroundColor: const Color(0xffD32F2F),
+                                          textColor: Colors.white,
+                                          fontSize: 16.0,
+                                        );
+                                        return;
+                                      }
                                       _showMapDialog();
                                     },
                                     style: OutlinedButton.styleFrom(

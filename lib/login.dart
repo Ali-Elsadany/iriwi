@@ -344,28 +344,8 @@ class _loginState extends State<login> {
                                           Directionality(
                                             textDirection: TextDirection.ltr,
                                             child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              mainAxisAlignment: MainAxisAlignment.center,
                                               children: [
-                                                // Forgot Password Link on the Left
-                                                TextButton(
-                                                  onPressed: () {
-                                                    // Forgot password
-                                                  },
-                                                  style: TextButton.styleFrom(
-                                                    padding: EdgeInsets.zero,
-                                                    minimumSize: Size.zero,
-                                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                  ),
-                                                  child: const Text(
-                                                    'نسيت حسابك ؟',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Color(0xff8E8E93),
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                ),
-
                                                 // Red Error Text on the Right (when error occurs)
                                                 if (hasError)
                                                   const Text(
