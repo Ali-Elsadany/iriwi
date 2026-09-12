@@ -15,26 +15,47 @@ Future<bool> loginASYNC(String username, String password, String cookie) async {
     'RememberMe': 'true',
   });
 
+  Map<String, String> headers = <String, String>{
+    'Content-Type': 'application/json; charset=UTF-8',
+  };
+  if (cookie.isNotEmpty) {
+    headers['Cookie'] = cookie;
+  }
+
   final http.Response response = await http.post(
     Uri.parse('https://irwicrop.com/Account/Login'),
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie': cookie
-    },
+    headers: headers,
     body: mydata,
   );
 
-  if (response.statusCode == 302) {
-    if (response.headers['set-cookie'] != null) {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cookie', response.headers['set-cookie']!);
-    }
-    print('Success Man !');
-    return true;
-  } else {
-    print(response.body);
-    return false;
+  print("Login status: ${response.statusCode}, body: ${response.body}");
+
+  if (response.headers['set-cookie'] != null) {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cookie', response.headers['set-cookie']!);
   }
+
+  if (response.statusCode == 302) {
+    print('Login Success (302 Redirect)');
+    return true;
+  }
+
+  if (response.statusCode == 200) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        if (decoded['success'] == true ||
+            (decoded['message'] != null && decoded['message'].toString().contains('successful'))) {
+          print('Login Success (200 OK)');
+          return true;
+        }
+      }
+    } catch (e) {
+      print('Error parsing login response: $e');
+    }
+  }
+
+  return false;
 }
 
 class login extends StatefulWidget {

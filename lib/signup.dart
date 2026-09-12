@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'directory.dart';
+import 'login.dart';
 
 Future<bool> signupASYNC(String username, String password, String confirmPass, String phone, String cookie) async {
   var mydata = jsonEncode({
@@ -15,24 +16,31 @@ Future<bool> signupASYNC(String username, String password, String confirmPass, S
     'firstname': username,
   });
 
+  Map<String, String> headers = <String, String>{
+    'Content-Type': 'application/json; charset=UTF-8',
+  };
+  if (cookie.isNotEmpty) {
+    headers['Cookie'] = cookie;
+  }
+
   final http.Response response = await http.post(
     Uri.parse('https://irwicrop.com/Account/Register'),
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie': cookie,
-    },
+    headers: headers,
     body: mydata,
   );
 
-  if (response.statusCode == 302) {
-    if (response.headers['set-cookie'] != null) {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cookie', response.headers['set-cookie']!);
-    }
-    print('Success Man !');
+  print("Register status: ${response.statusCode}, body: ${response.body}");
+
+  if (response.headers['set-cookie'] != null) {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cookie', response.headers['set-cookie']!);
+  }
+
+  if (response.statusCode == 302 || response.statusCode == 200) {
+    print('Register Success !');
     return true;
   } else {
-    print(response.body);
+    print('Register Failed: ${response.body}');
     return false;
   }
 }
@@ -547,6 +555,8 @@ class _signupState extends State<signup> {
                                                           errorMessage = 'برجاء التاكد من كلمة السر ورقم الهاتف';
                                                         });
                                                       } else {
+                                                        // Automatically establish authenticated ASP.NET session cookie
+                                                        await loginASYNC(phone, password, '');
                                                         Navigator.of(context).pushReplacement(goToFarms());
                                                         setState(() {
                                                           isLoading = false;

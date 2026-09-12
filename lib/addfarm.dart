@@ -1,36 +1,41 @@
-
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:irwi/login.dart';
 import 'package:http/http.dart' as http;
 import 'package:location/location.dart';
-// import 'package:permission/permission.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'dart:math' as math;
 import 'directory.dart';
 import 'widgets/side_menu.dart';
 
-
-
-
-Future<bool> addFarmASYNC(String name, String government, String soiltype, bool salty,double lng,double lat, double dischargerate, double gasuseage, double gasprice,String cookie) async {
-  if(soiltype == 'طينية'){
+Future<bool> addFarmASYNC(
+  String name,
+  String government,
+  String soiltype,
+  bool salty,
+  double lng,
+  double lat,
+  double dischargerate,
+  double gasuseage,
+  double gasprice,
+  String cookie,
+) async {
+  if (soiltype == 'طينية') {
     soiltype = 'clay';
-  }else if(soiltype == 'رملية'){
+  } else if (soiltype == 'رملية') {
     soiltype = 'sandy';
-  }else if(soiltype == 'سلتية'){
+  } else if (soiltype == 'سلتية') {
     soiltype = 'silt';
   }
+
   var mydata = jsonEncode({
     'name': name,
     'government': government,
@@ -43,7 +48,6 @@ Future<bool> addFarmASYNC(String name, String government, String soiltype, bool 
     'gasprice': gasprice,
   });
 
-
   final http.Response response = await http.post(
     Uri.parse('https://irwicrop.com/Home/addfarm'),
     headers: <String, String>{
@@ -53,860 +57,932 @@ Future<bool> addFarmASYNC(String name, String government, String soiltype, bool 
     body: mydata,
   );
 
-
-  if (response.statusCode == 302) {
-    //return Album.fromJson(json.decode(response.body));
-    //String reqbody = response.request.toString();
-    //String resbody = response.body;
-    //if(response.headers['location'] == '/Home/farms'){
-    if(response.headers['set-cookie'] == null)
-      return true;
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    //int counter = (prefs.getInt('counter') ?? 0) + 1;
-    //print('Pressed $counter times.');
-    await prefs.setString('cookie', response.headers['set-cookie']!);
-    print('Success Man !');
-    return true;
-    //}
-    print(response);
-    return false;
-  } else {//302
-    print(response.body);
-    return false;
-    throw Exception('Failed to create album.');
-  }
-}
-
-Future<bool> logoutASYNC(String cookie) async {
-  var mydata = jsonEncode({
-  });
-
-
-  final http.Response response = await http.post(
-    Uri.parse('https://irwicrop.com/Account/LogOff'), // Convert String to Uri
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Cookie': cookie,
-    },
-    body: mydata,
-  );
-
-
-  if (response.statusCode == 302) {
-    //return Album.fromJson(json.decode(response.body));
-    //String reqbody = response.request.toString();
-    //String resbody = response.body;
-    //if(response.headers['location'] == '/Home/farms'){
+  if (response.statusCode == 302 || response.statusCode == 200 || response.statusCode == 201) {
+    if (response.headers['set-cookie'] != null) {
       SharedPreferences prefs = await SharedPreferences.getInstance();
-      //int counter = (prefs.getInt('counter') ?? 0) + 1;
-      //print('Pressed $counter times.');
       await prefs.setString('cookie', response.headers['set-cookie']!);
-      print('Success Man !');
-      return true;
-    //}
-    print(response);
+    }
+    print('Success Man ! Status: ${response.statusCode}');
+    return true;
+  } else {
+    print("Add farm failed: Status ${response.statusCode}, Body: ${response.body}");
     return false;
-  } else {//302
-    print(response.body);
-    return false;
-    throw Exception('Failed to create album.');
   }
 }
-
 
 class addfarm extends StatefulWidget {
-
-  /*login({Key key, this.title}) : super(key: key);
-
-  final String title;*/
   @override
   _addfarmState createState() => _addfarmState();
 }
 
 class _addfarmState extends State<addfarm> {
-  //To Require Permission
-  bool checkedValue = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  GlobalKey<FormState> formkey = GlobalKey<FormState>();
+
   bool salty = false;
   bool isLoading = false;
-  bool movecamera = false;
-  String? government = null;
-  String? farmname = null;
-  String? soiltype = null;
-  String? dischargeUnit = null;
-  double? dischargeRate = null;
-  double? gasprice = null;
-  double? gasusage = null;
-  String confirmPass = '';
-  String phone = '';
-  String errorMessage = '';
+  bool movecamera = true;
+
+  String? government;
+  String? farmname;
+  String? soiltype;
+  String? dischargeUnit = 'متر مكعب/ساعة';
+  double? dischargeRate;
+  double? gasprice;
+  double? gasusage;
+
   double Lat = 30.0444;
   double Lng = 31.235;
-  final MarkerId markerId = MarkerId('marker_id_1');
-  final Marker marker = Marker(
-    markerId: MarkerId('marker_id_1'),
-    position: LatLng(30.0444, 31.235),
-    infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
-    onTap: () {
-      //_onMarkerTapped(markerId);
-      print('Marker Tapped');
-    },
-    onDragEnd: (LatLng position) {
-      print('Drag Ended');
-    },
-  );
-  Map<MarkerId, Marker> markers = <MarkerId, Marker>{MarkerId('marker_id_1'):Marker(
-    markerId: MarkerId('marker_id_1'),
-    position: LatLng(30.0444, 31.235),
-    infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
-    onTap: () {
-      //_onMarkerTapped(markerId);
-      print('Marker Tapped');
-    },
-    onDragEnd: (LatLng position) {
-      print('Drag Ended');
-    },
-  )};
-  void _updatePosition(CameraPosition _position) {
-    markers.update(MarkerId('marker_id_1'), (value) => Marker(
-      markerId: MarkerId('marker_id_1'),
-      position: LatLng(_position.target.latitude, _position.target.longitude),
-      infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
-      onTap: () {
-        //_onMarkerTapped(markerId);
-        print('Marker Tapped');
-      },
-      onDragEnd: (LatLng position) {
-        print('Drag Ended');
-      },
-    ));
-    Lat = _position.target.latitude;
-    Lng = _position.target.longitude;
-    setState(() {});
-  }
 
-  var allGovernments = <String>[ 'محافظة الإسكندرية', 'محافظة الإسماعيلية', 'محافظة أسوان', 'محافظة أسيوط', 'محافظة الأقصر', 'محافظة البحر الأحمر', 'محافظة البحيرة', 'محافظة بني سويف', 'محافظة بورسعيد', 'محافظة جنوب سيناء', 'محافظة الجيزة', 'محافظة الدقهلية', 'محافظة دمياط', 'محافظة سوهاج', 'محافظة السويس', 'محافظة الشرقية', 'محافظة شمال سيناء', 'محافظة الغربية', 'محافظة الفيوم', 'محافظة القاهرة', 'محافظة القليوبية', 'محافظة قنا', 'محافظة كفر الشيخ', 'محافظة مطروح', 'محافظة المنوفية', 'محافظة المنيا', 'محافظة الوادي الجديد'  ];
-  GlobalKey<FormState> formkey = GlobalKey<FormState>();
-  final TextEditingController _pass = TextEditingController();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController dischargeController = TextEditingController();
+  final TextEditingController gasUsageController = TextEditingController();
+  final TextEditingController gasPriceController = TextEditingController();
+
+  Map<MarkerId, Marker> markers = <MarkerId, Marker>{
+    const MarkerId('marker_id_1'): const Marker(
+      markerId: MarkerId('marker_id_1'),
+      position: LatLng(30.0444, 31.235),
+    ),
+  };
+
   Completer<GoogleMapController> _controller = Completer();
 
-  static final CameraPosition cairo = CameraPosition(
+  static const CameraPosition cairo = CameraPosition(
     target: LatLng(30.0444, 31.235),
     zoom: 7,
   );
-  static final CameraPosition alex = CameraPosition(
-    target: LatLng(30.8761, 29.7426),
-    zoom: 7,
-  );
-  static final CameraPosition ismailya = CameraPosition(
-    target: LatLng(30.5831, 32.2654),
-    zoom: 7,
-  );
-  static final CameraPosition aswan = CameraPosition(
-    target: LatLng(23.6966, 32.7181),
-    zoom: 7,
-  );
-  static final CameraPosition asyout = CameraPosition(
-    target: LatLng(27.2134, 31.4456),
-    zoom: 7,
-  );
-  static final CameraPosition luxor = CameraPosition(
-    target: LatLng(25.3944, 32.4920),
-    zoom: 7,
-  );
-  static final CameraPosition redsea = CameraPosition(
-    target: LatLng(24.6826, 34.1532),
-    zoom: 7,
-  );
-  static final CameraPosition beheira = CameraPosition(
-    target: LatLng(30.8481, 30.3436),
-    zoom: 7,
-  );
-  static final CameraPosition benisuef = CameraPosition(
-    target: LatLng(28.8939, 31.4456),
-    zoom: 7,
-  );
-  static final CameraPosition portsaid = CameraPosition(
-    target: LatLng(31.0759, 32.2654),
-    zoom: 7,
-  );
-  static final CameraPosition southsinai = CameraPosition(
-    target: LatLng(29.3102, 34.1532),
-    zoom: 7,
-  );
-  static final CameraPosition giza = CameraPosition(
-    target: LatLng(28.7666, 29.2321),
-    zoom: 7,
-  );
-  static final CameraPosition dakahlia = CameraPosition(
-    target: LatLng(31.1656, 31.4913),
-    zoom: 7,
-  );
-  static final CameraPosition domyat = CameraPosition(
-    target: LatLng(31.3626, 31.6739),
-    zoom: 7,
-  );
-  static final CameraPosition sohag = CameraPosition(
-    target: LatLng(26.6938, 32.1746),
-    zoom: 7,
-  );
-  static final CameraPosition suez = CameraPosition(
-    target: LatLng(29.3682, 32.1746),
-    zoom: 7,
-  );
-  static final CameraPosition sharkia = CameraPosition(
-    target: LatLng(30.7327, 31.7195),
-    zoom: 7,
-  );
-  static final CameraPosition northsinai = CameraPosition(
-    target: LatLng(30.2824, 33.6176),
-    zoom: 7,
-  );
-  static final CameraPosition gharbia = CameraPosition(
-    target: LatLng(30.8754, 31.0335),
-    zoom: 7,
-  );
-  static final CameraPosition fayoum = CameraPosition(
-    target: LatLng(29.3565, 30.6200),
-    zoom: 7,
-  );
-  static final CameraPosition kalyobya = CameraPosition(
-    target: LatLng(30.3292, 31.2168),
-    zoom: 7,
-  );
-  static final CameraPosition qena = CameraPosition(
-    target: LatLng(26.2346, 32.9888),
-    zoom: 7,
-  );
-  static final CameraPosition kafrelsheikh = CameraPosition(
-    target: LatLng(31.3085, 30.8039),
-    zoom: 7,
-  );
-  static final CameraPosition matrouh = CameraPosition(
-    target: LatLng(29.5696, 26.4194),
-    zoom: 7,
-  );
-  static final CameraPosition monofeya = CameraPosition(
-    target: LatLng(30.5972, 30.9876),
-    zoom: 7,
-  );
-  static final CameraPosition menya = CameraPosition(
-    target: LatLng(28.2847, 30.5279),
-    zoom: 7,
-  );
-  static final CameraPosition wadielgedeed = CameraPosition(
-    target: LatLng(24.5456, 27.1735),
-    zoom: 7,
-  );
+
+  var allGovernments = <String>[
+    'محافظة الإسكندرية',
+    'محافظة الإسماعيلية',
+    'محافظة أسوان',
+    'محافظة أسيوط',
+    'محافظة الأقصر',
+    'محافظة البحر الأحمر',
+    'محافظة البحيرة',
+    'محافظة بني سويف',
+    'محافظة بورسعيد',
+    'محافظة جنوب سيناء',
+    'محافظة الجيزة',
+    'محافظة الدقهلية',
+    'محافظة دمياط',
+    'محافظة سوهاج',
+    'محافظة السويس',
+    'محافظة الشرقية',
+    'محافظة شمال سيناء',
+    'محافظة الغربية',
+    'محافظة الفيوم',
+    'محافظة القاهرة',
+    'محافظة القليوبية',
+    'محافظة قنا',
+    'محافظة كفر الشيخ',
+    'محافظة مطروح',
+    'محافظة المنوفية',
+    'محافظة المنيا',
+    'محافظة الوادي الجديد',
+  ];
+
+  void _updatePosition(CameraPosition _position) {
+    markers.update(
+      const MarkerId('marker_id_1'),
+      (value) => Marker(
+        markerId: const MarkerId('marker_id_1'),
+        position: LatLng(_position.target.latitude, _position.target.longitude),
+      ),
+    );
+    Lat = _position.target.latitude;
+    Lng = _position.target.longitude;
+  }
+
   Future<void> goToTheLocation(CameraPosition _kLake) async {
     final GoogleMapController controller = await _controller.future;
     controller.animateCamera(CameraUpdate.newCameraPosition(_kLake));
   }
 
   void GetDeviceLocation() async {
-    var location = new Location();
+    var location = Location();
     location.changeSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: 0,
       interval: 100,
     );
-    location.getLocation().then((value){
-      CameraPosition userlocation = CameraPosition(
-        target: LatLng(value.latitude!, value.longitude!),
-        zoom: 15,
-      );
-      goToTheLocation(userlocation);
-      setState(() {
-        Fluttertoast.showToast(
-            msg: "تم تحديد مكانك بنجاح",
-            toastLength: Toast.LENGTH_SHORT,
-            gravity: ToastGravity.CENTER,
-            timeInSecForIosWeb: 1,
-            backgroundColor: Colors.teal,
-            textColor: Colors.white,
-            fontSize: 16.0
+    location.getLocation().then((value) {
+      if (value.latitude != null && value.longitude != null) {
+        CameraPosition userlocation = CameraPosition(
+          target: LatLng(value.latitude!, value.longitude!),
+          zoom: 15,
         );
-      });
+        goToTheLocation(userlocation);
+        Fluttertoast.showToast(
+          msg: "تم تحديد مكانك بنجاح",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.CENTER,
+          backgroundColor: const Color(0xff006837),
+          textColor: Colors.white,
+          fontSize: 16.0,
+        );
+      }
     });
-    /*location.onLocationChanged.listen((LocationData currentLocation) {
-    });*/
+  }
+
+  void _showMapDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Color(0xff1C1C1C), size: 24),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Text(
+                    'تغيير المكان',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xff1C1C1C)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    children: [
+                      GoogleMap(
+                        mapType: MapType.normal,
+                        initialCameraPosition: cairo,
+                        myLocationEnabled: true,
+                        myLocationButtonEnabled: false,
+                        markers: Set<Marker>.of(markers.values),
+                        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                          Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+                        },
+                        onCameraMove: ((_position) => _updatePosition(_position)),
+                        zoomGesturesEnabled: true,
+                        zoomControlsEnabled: true,
+                        onMapCreated: (GoogleMapController controller) {
+                          if (!_controller.isCompleted) {
+                            _controller.complete(controller);
+                          }
+                        },
+                      ),
+
+                      // Floating My Location Target Button
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: FloatingActionButton.small(
+                          heroTag: 'myLocationFab',
+                          backgroundColor: Colors.white,
+                          elevation: 4,
+                          onPressed: () {
+                            GetDeviceLocation();
+                          },
+                          child: const Icon(
+                            Icons.my_location_rounded,
+                            color: Color(0xff006837),
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    GetDeviceLocation();
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xff006837),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.location_on_outlined, color: Colors.white, size: 20),
+                  label: const Text(
+                    'تغيير المكان',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    dischargeController.dispose();
+    gasUsageController.dispose();
+    gasPriceController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Permission.openSettings;
-    return WillPopScope(onWillPop: ()async{
-      //print('poooooooooooooped');
-      Navigator.of(context).pushReplacement(goToFarms());
-      return false;
-    },
+    final mediaQuery = MediaQuery.of(context);
+    final topHeight = mediaQuery.size.height * 0.16;
+
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.of(context).pushReplacement(goToFarms());
+        return false;
+      },
       child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('إروي'),
-              Image(
-                  image: AssetImage('assets/images/logo.png'),
-                  fit: BoxFit.contain,
-                height: AppBar().preferredSize.height -5,
-              )
-            ],
-          ),
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: <Color>[Color(0xff08aeea), Color(0xff2af598)])
-            ),
-          ),
-        ),
+        key: _scaffoldKey,
+        backgroundColor: const Color(0xffE7FBE5),
         drawer: SideMenu(currentRoute: '/addfarm'),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            //Navigator.pop(context);
-            Navigator.of(context).pushReplacement(goToFarms());
-          },
-          child: Icon(Icons.home),
-          backgroundColor: Color(0xff2af598),
-        ),
-        body: Container(
-            /*decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage("assets/images/cover.png"),
-                fit: BoxFit.cover,
-              ),
-            ),*/
-            child: SingleChildScrollView(
-                scrollDirection: Axis.vertical,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height)/*.tightFor(
-                  height: MediaQuery.of(context).size.height,//Height of screen
-                )*/,
-                  child:Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      Container(
-                        decoration: new BoxDecoration(
-                          //borderRadius: new BorderRadius.circular(16.0),
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.5),
-                              spreadRadius: 5,
-                              blurRadius: 7,
-                              offset: Offset(0, 3), // changes position of shadow
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // Top Section (Header)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: topHeight,
+                child: Container(
+                  color: const Color(0xffE7FBE5),
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Circular Farmer Avatar Container
+                      InkWell(
+                        onTap: () {
+                          _scaffoldKey.currentState?.openDrawer();
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xff006837),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Transform.scale(
+                            scale: 2,
+                            alignment: const Alignment(0, -1.3),
+                            child: SvgPicture.asset(
+                              'assets/images/Isolation_Mode.svg',
+                              fit: BoxFit.contain,
+                              placeholderBuilder: (context) => Image.asset(
+                                'assets/images/logo.png',
+                                fit: BoxFit.contain,
+                              ),
                             ),
-                          ],
-                        ),
-                        padding: EdgeInsets.all(10),
-                        margin: EdgeInsets.symmetric(horizontal: 25,vertical: 15),
-                        child: Form(
-                          key: formkey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: <Widget>[
-                                Image(image: AssetImage('assets/images/farmer.png'), height: 150,),
-                              Text('أضافة مزرعة جديدة',style: TextStyle(fontSize: 25),),
-                              SizedBox(height: 10),
-                              Text('برجاء اختيار المحافظة اولاً',style: TextStyle(fontSize: 16,color: Colors.red),),
-                              SizedBox(height: 10),
-                              DropdownButtonFormField<String>(
-                                validator: (String? value){
-                                  if(value == null){
-                                    return "برجاء اختيار المحافظة";
-                                  }
-                                },
-                                onSaved: (String? value){
-                                  government = value;
-                                },
-                                isExpanded: true,
-                                value: government,
-                                hint: Text('اختر المحافظة'),
-                                icon: Icon(Icons.arrow_drop_down),
-                                iconSize: 24,
-                                elevation: 16,
-                                style: TextStyle(color: Colors.black,fontSize: 20),
-                                /*underline: Container(
-                                      height: 2,
-                                      color: Color(0xff26a69a),
-                                    ),*/
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    government = newValue;
-                                    if(allGovernments.indexOf(newValue!) == 0) goToTheLocation(alex);
-                                    else if(allGovernments.indexOf(newValue) == 1) goToTheLocation(ismailya);
-                                    else if(allGovernments.indexOf(newValue) == 2) goToTheLocation(aswan);
-                                    else if(allGovernments.indexOf(newValue) == 3) goToTheLocation(asyout);
-                                    else if(allGovernments.indexOf(newValue) == 4) goToTheLocation(luxor);
-                                    else if(allGovernments.indexOf(newValue) == 5) goToTheLocation(redsea);
-                                    else if(allGovernments.indexOf(newValue) == 6) goToTheLocation(beheira);
-                                    else if(allGovernments.indexOf(newValue) == 7) goToTheLocation(benisuef);
-                                    else if(allGovernments.indexOf(newValue) == 8) goToTheLocation(portsaid);
-                                    else if(allGovernments.indexOf(newValue) == 9) goToTheLocation(southsinai);
-                                    else if(allGovernments.indexOf(newValue) == 10) goToTheLocation(giza);
-                                    else if(allGovernments.indexOf(newValue) == 11) goToTheLocation(dakahlia);
-                                    else if(allGovernments.indexOf(newValue) == 12) goToTheLocation(domyat);
-                                    else if(allGovernments.indexOf(newValue) == 13) goToTheLocation(sohag);
-                                    else if(allGovernments.indexOf(newValue) == 14) goToTheLocation(suez);
-                                    else if(allGovernments.indexOf(newValue) == 15) goToTheLocation(sharkia);
-                                    else if(allGovernments.indexOf(newValue) == 16) goToTheLocation(northsinai);
-                                    else if(allGovernments.indexOf(newValue) == 17) goToTheLocation(gharbia);
-                                    else if(allGovernments.indexOf(newValue) == 18) goToTheLocation(fayoum);
-                                    else if(allGovernments.indexOf(newValue) == 19) goToTheLocation(cairo);
-                                    else if(allGovernments.indexOf(newValue) == 20) goToTheLocation(kalyobya);
-                                    else if(allGovernments.indexOf(newValue) == 21) goToTheLocation(qena);
-                                    else if(allGovernments.indexOf(newValue) == 22) goToTheLocation(kafrelsheikh);
-                                    else if(allGovernments.indexOf(newValue) == 23) goToTheLocation(matrouh);
-                                    else if(allGovernments.indexOf(newValue) == 24) goToTheLocation(monofeya);
-                                    else if(allGovernments.indexOf(newValue) == 25) goToTheLocation(menya);
-                                    else if(allGovernments.indexOf(newValue) == 26) goToTheLocation(wadielgedeed);
-
-                                  });
-                                },
-                                items: allGovernments
-                                    .map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(value),
-                                        if(allGovernments.indexOf(value) == 0) Image.asset('assets/images/governates/Flag_of_Alexandria.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 1) Image.asset('assets/images/governates/Governadorat_d\'Ismailiya.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 2) Image.asset('assets/images/governates/Governadorat_d\'Aswan.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 3) Image.asset('assets/images/governates/Flag_of_Assiut_Governorate.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 4) Image.asset('assets/images/governates/Flag_Egy_Luxor.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 5) Image.asset('assets/images/governates/Governadorat_de_la_mar_Roja.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 6) Image.asset('assets/images/governates/800px-Flag_of_Behira_Govenorate.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 7) Image.asset('assets/images/governates/Governadorat_de_Bani_Suwayf.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 8) Image.asset('assets/images/governates/Flag_of_Port_Said_Governorate.PNG',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 9) Image.asset('assets/images/governates/Governadorat_de_Sinai_del_sud.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 10) Image.asset('assets/images/governates/Governadorat_de_Gizeh.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 11) Image.asset('assets/images/governates/Governadorat_de_Daqahliya.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 12) Image.asset('assets/images/governates/Flag_of_Damietta_Governorate.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 13) Image.asset('assets/images/governates/Governadorat_de_Suhaj.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 14) Image.asset('assets/images/governates/Governadorat_de_Suez.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 15) Image.asset('assets/images/governates/324px-Flag_of_Ash_Sharqiyah.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 16) Image.asset('assets/images/governates/Governadorat_de_Sinai-Sinai_del_nord.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 17) Image.asset('assets/images/governates/Governadorat_de_Gharbiya.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 18) Image.asset('assets/images/governates/Governadorat_de_Faium.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 19) Image.asset('assets/images/governates/Flag_of_Cairo.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 20) Image.asset('assets/images/governates/Flag_of_Qalubiya_Governorate.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 21) Image.asset('assets/images/governates/Governadorat_de_Qena_flag.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 22) Image.asset('assets/images/governates/Flag_of_Kafr_El-Sheikh_Governorate.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 23) Image.asset('assets/images/governates/Matrouh_Governorate-logo.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 24) Image.asset('assets/images/governates/Flag_of_Menoufia_Governorate.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 25) Image.asset('assets/images/governates/Flag_of_Minya_Governorate.png',height: 30,)
-                                        else if(allGovernments.indexOf(value) == 26) Image.asset('assets/images/governates/Governadorat_de_Wadi_al-Jadid.png',height: 30,)
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                              SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                children: [
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        Fluttertoast.showToast(
-                                          msg: "جاري تحديد مكانك",
-                                          toastLength: Toast.LENGTH_SHORT,
-                                          gravity: ToastGravity.CENTER,
-                                          timeInSecForIosWeb: 1,
-                                          backgroundColor: Colors.teal,
-                                          textColor: Colors.white,
-                                          fontSize: 16.0,
-                                        );
-                                      });
-                                      GetDeviceLocation();
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Color(0xff26a69a), // Replaces `color`
-                                    ),
-                                    child: Text(
-                                      'حدد مكاني',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  )
-                                  ,
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      movecamera = true;
-                                      setState(() {
-                                        Fluttertoast.showToast(
-                                          msg: "يمكنك الان تحريك الخريطة",
-                                          toastLength: Toast.LENGTH_SHORT,
-                                          gravity: ToastGravity.CENTER,
-                                          timeInSecForIosWeb: 1,
-                                          backgroundColor: Colors.teal,
-                                          textColor: Colors.white,
-                                          fontSize: 16.0,
-                                        );
-                                      });
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Color(0xff26a69a), // Use `backgroundColor` instead of `color`
-                                    ),
-                                    child: Text(
-                                      'دعني احدد مكاني',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-
-                                ],
-                              ),//Location buttons
-                              SizedBox(height: 10),
-                              SizedBox(
-                                width: MediaQuery.of(context).size.width,  // or use fixed size like 200
-                                height: MediaQuery.of(context).size.width,
-                                child:GoogleMap(
-                                  mapType: MapType.normal,
-                                  initialCameraPosition: cairo,
-                                  markers: Set<Marker>.of(markers.values),
-                                  gestureRecognizers: movecamera
-                                      ? <Factory<OneSequenceGestureRecognizer>>{
-                                    Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
-                                  }
-                                      : <Factory<OneSequenceGestureRecognizer>>{}, // Provide an empty Set instead of null
-                                  onCameraMove: ((_position) => _updatePosition(_position)),
-                                  zoomGesturesEnabled: movecamera,
-                                  zoomControlsEnabled: movecamera,
-                                  onMapCreated: (GoogleMapController controller) {
-                                    _controller.complete(controller);
-                                  },
-                                )
-                                ,
-                              ),//GOOGLE MAP
-                              SizedBox(height: 10),
-                              TextFormField(
-                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
-                                cursorColor: Color(0xff26a69a),
-                                decoration: InputDecoration(labelText: 'اسم المزرعة',focusColor: Color(0xff26a69a)),
-                                validator: (String? value){
-                                  if(value!.isEmpty){
-                                    return "برجاء ادخال اسم المزرعة";
-                                  }
-                                },
-                                onSaved: (String? value){
-                                  farmname = value!;
-                                },
-                              ),
-                              SizedBox(height: 10),
-                              DropdownButtonFormField<String>(
-                                validator: (String? value){
-                                  if(value == null){
-                                    return "برجاء نوع التربة";
-                                  }
-                                },
-                                onSaved: (String? value){
-                                  soiltype = value;
-                                },
-                                isExpanded: true,
-                                value: soiltype,
-                                icon: Icon(Icons.arrow_drop_down),
-                                iconSize: 24,
-                                elevation: 16,
-                                style: TextStyle(color: Colors.black,fontSize: 18),
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    soiltype = newValue;
-                                  });
-                                },
-                                hint: Text('اختر نوع التربة'),
-                                items: <String>[ 'رملية', 'سلتية', 'طينية']
-                                    .map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(value),
-                                        if(value == 'رملية')
-                                        Image.asset('assets/images/soil/sand.jpg',height: 30,)
-                                        else if(value == 'سلتية')
-                                            Image.asset('assets/images/soil/silt.jpg',height: 30,)
-                                        else if(value == 'طينية')
-                                            Image.asset('assets/images/soil/loam.jpg',height: 30,)
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
-                                      cursorColor: Color(0xff26a69a),
-                                      decoration: InputDecoration(labelText: 'معدل صرف الطرومبة',focusColor: Color(0xff26a69a)),
-                                      validator: (String? value){
-                                        if(value!.isEmpty){
-                                          return "برجاء ادخال صرف الطرومبة";
-                                        }
-                                      },
-                                      onSaved: (String? value) {
-                                        double rate = double.tryParse(value ?? '0') ?? 0; // Ensure it's always a double
-                                        if (dischargeUnit == 'حصان') {
-                                          rate *= 10;
-                                        } else if (dischargeUnit == 'لتر/ثانية') {
-                                          rate *= 3.6;
-                                        }
-                                        dischargeRate = rate; // Assign the final value
-                                      },
-
-
-                                      inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                    ),
-                                  ),
-                                  Container(width: 5, color: Colors.transparent),
-                                  Expanded(
-                                    child: DropdownButtonFormField<String>(
-                                      validator: (String? value){
-                                        if(value == null){
-                                          return "برجاء اختيار الوحدة";
-                                        }
-                                      },
-                                      onSaved: (String? value){
-                                        dischargeUnit = value;
-                                      },
-                                      value: dischargeUnit,
-                                      icon: Icon(Icons.arrow_drop_down),
-                                      iconSize: 24,
-                                      elevation: 16,
-                                      style: TextStyle(color: Colors.black,fontSize: 16),
-                                      onChanged: (String? newValue) {
-                                        setState(() {
-                                          dischargeUnit = newValue;
-                                        });
-                                      },
-                                      hint: Text('اختر الوحدة'),
-                                      items: <String>[ 'متر مكعب/ساعة', 'حصان', 'لتر/ثانية']
-                                          .map<DropdownMenuItem<String>>((String value) {
-                                        return DropdownMenuItem<String>(
-                                          value: value,
-                                          child: Text(value),
-                                        );
-                                      }).toList(),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
-                                      cursorColor: Color(0xff26a69a),
-                                      decoration: InputDecoration(labelText: 'استهلاك الوقود',focusColor: Color(0xff26a69a)),
-                                      inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                      /*keyboardType: TextInputType.number,
-                                      inputFormatters: <TextInputFormatter>[
-                                        FilteringTextInputFormatter.digitsOnly
-                                      ],*/
-                                      onSaved: (String? value){
-                                        gasusage = double.tryParse(value!);
-                                        if(gasusage == null)
-                                          gasusage = 0;
-                                      },
-                                    ),
-                                  ),
-                                  Container(width: 20, color: Colors.transparent),
-                                  Text('لتر/ساعة',style: TextStyle(fontSize: 20),),
-                                ],
-                              ),
-                              SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                              style: TextStyle(fontFamily: 'IBMPlexSansArabic'),
-                                      cursorColor: Color(0xff26a69a),
-                                      decoration: InputDecoration(labelText: 'سعر الوقود',focusColor: Color(0xff26a69a)),
-                                      inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
-                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                      onSaved: (String? value){
-                                        gasprice = double.tryParse(value!)!;
-                                        if(gasprice == null)
-                                          gasprice = 0;
-                                      },
-                                    ),
-                                  ),
-                                  Container(width: 20, color: Colors.transparent),
-                                  Text('جنيه/لتر',style: TextStyle(fontSize: 20),),
-                                ],
-                              ),
-                              SizedBox(height: 10),
-                              Container(
-                                margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
-                                child: CheckboxListTile(
-                                  title: Text('هل التربة مالحة؟'),
-                                  value: salty,
-                                  onChanged: (newValue) {
-                                    setState(() {
-                                      salty = newValue!;
-                                    });
-                                  },
-                                  controlAffinity: ListTileControlAffinity.leading,  //  <-- leading Checkbox
-                                ),
-                              ),
-                              isLoading
-                                  ? Center(
-                                child: CircularProgressIndicator(),
-                              ):
-                              ElevatedButton(
-                                onPressed: () async {
-                                  if (!formkey.currentState!.validate()) { // Ensure null safety with !
-                                    return;
-                                  }
-                                  setState(() {
-                                    isLoading = true;
-                                    formkey.currentState!.save();
-                                  });
-
-                                  SharedPreferences prefs = await SharedPreferences.getInstance();
-                                  String cookie = (prefs.getString('cookie') ?? '');
-                                  final user = await addFarmASYNC(
-                                      farmname!, government!, soiltype!, salty, Lng, Lat, dischargeRate!, gasusage!, gasprice!, cookie
-                                  );
-
-                                  if (!user) {
-                                    Fluttertoast.showToast(
-                                      msg: "حاول مرة اخرى",
-                                      toastLength: Toast.LENGTH_SHORT,
-                                      gravity: ToastGravity.CENTER,
-                                      timeInSecForIosWeb: 1,
-                                      backgroundColor: Colors.teal,
-                                      textColor: Colors.white,
-                                      fontSize: 16.0,
-                                    );
-                                    setState(() {
-                                      isLoading = false;
-                                    });
-                                    print('user = false');
-                                  } else {
-                                    Navigator.of(context).pushReplacement(goToFarms());
-                                    setState(() {
-                                      isLoading = false;
-                                    });
-                                    print('user = true');
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xff26a69a), // Button color
-                                ),
-                                child: const Text(
-                                  'اضف المزرعة',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ),
-
-                            ],
                           ),
                         ),
                       ),
-                      Container(//FOOTER
-                        padding: EdgeInsets.all(5),
-                        decoration: new BoxDecoration(
-                          gradient: LinearGradient(
-                              colors: [Color(0xff08aeea), Color(0xff2af598)],
-                              begin: const FractionalOffset(0.0, 0.0),
-                              end: const FractionalOffset(0.7, 0.0),
-                              stops: [0.0, 1.0],
-                              tileMode: TileMode.clamp
-                          ),
-                        ),
+
+                      const SizedBox(width: 8),
+                      // Greeting & Location Text (InkWell on left side of Avatar)
+                      InkWell(
+                        onTap: () {
+                          _scaffoldKey.currentState?.openDrawer();
+                        },
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const Text(
+                              'أهلا وسهلا، أنس',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xff006837),
+                              ),
+                            ),
+                            SizedBox(height: 2),
                             Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            Flexible(
-                                child: Image(image: AssetImage('assets/images/msa.png'),
-                                  fit: BoxFit.contain,)
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/images/vuesax_linear_sun.svg',
+                                  width: 16,
+                                  height: 16,
+                                  placeholderBuilder: (context) => const Icon(
+                                    Icons.wb_sunny_rounded,
+                                    size: 16,
+                                    color: Color(0xffFB892C),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'المزرعة الشرقية، 33°',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xff006837),
+                                  ),
+                                ),
+                                const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xff006837), size: 18),
+                                const SizedBox(width: 2),
+                              ],
                             ),
-                            SizedBox(width: 20),
-                            Flexible(
-                                child: Image(image: AssetImage('assets/images/iwmi.png'),
-                                  fit: BoxFit.contain,)
-                            ),
-                            SizedBox(width: 20),
-                            Flexible(
-                                child: Image(image: AssetImage('assets/images/sweri.png'),
-                                  fit: BoxFit.contain,)
-                            )
                           ],
                         ),
-                            Image(
-                                image: AssetImage('assets/images/WAPOR.jpg')
-                            )
-                          ],
-                        ),
-                      ),//FOOTER
+                      ),
+
+
+
                     ],
                   ),
-                )
-            )
-        ), // This trailing comma makes auto-formatting nicer for build methods.
+                ),
+              ),
+
+              // Main Content Area (White Card)
+              Column(
+                children: [
+                  SizedBox(height: topHeight - 12),
+
+                  Expanded(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                          child: Form(
+                            key: formkey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Title Row with Close Button
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'أضف مزرعة جديدة',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xff1C1C1C),
+                                      ),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded, color: Color(0xff1C1C1C), size: 24),
+                                      onPressed: () {
+                                        Navigator.of(context).pushReplacement(goToFarms());
+                                      },
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // 1. Governate Selection
+                                const Text(
+                                  'اختار المحافظة',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff1C1C1C),
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                DropdownButtonFormField<String>(
+                                  validator: (String? value) {
+                                    if (value == null) {
+                                      return "برجاء اختيار المحافظة";
+                                    }
+                                    return null;
+                                  },
+                                  onSaved: (String? value) {
+                                    government = value;
+                                  },
+                                  isExpanded: true,
+                                  value: government,
+                                  hint: const Text(
+                                    'اختر المحافظة',
+                                    style: TextStyle(fontSize: 13, color: Color(0xffA5A5A5)),
+                                  ),
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xff777777)),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: const Color(0xffFAFAFA),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xffE0E0E0), width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xff006837), width: 1.5),
+                                    ),
+                                  ),
+                                  onChanged: (String? newValue) {
+                                    setState(() {
+                                      government = newValue;
+                                    });
+                                  },
+                                  items: allGovernments.map<DropdownMenuItem<String>>((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(
+                                        value,
+                                        style: const TextStyle(fontSize: 14, color: Color(0xff1C1C1C)),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // 2. Map Location Button ("تحديد الموقع على الخريطة")
+                                SizedBox(
+                                  height: 48,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      _showMapDialog();
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xff006837), width: 1.5),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.map_outlined, color: Color(0xff006837), size: 20),
+                                    label: const Text(
+                                      'تحديد الموقع على الخريطة',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xff006837),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // 3. Farm Name
+                                const Text(
+                                  'اسم المزرعة',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff1C1C1C),
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                TextFormField(
+                                  controller: nameController,
+                                  textAlign: TextAlign.right,
+                                  style: const TextStyle(fontSize: 14, color: Color(0xff1C1C1C)),
+                                  decoration: InputDecoration(
+                                    hintText: 'اكتب اسم المزرعة',
+                                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xffA5A5A5)),
+                                    filled: true,
+                                    fillColor: const Color(0xffFAFAFA),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xffE0E0E0), width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xff006837), width: 1.5),
+                                    ),
+                                  ),
+                                  validator: (String? value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return "برجاء ادخال اسم المزرعة";
+                                    }
+                                    return null;
+                                  },
+                                  onSaved: (String? value) {
+                                    farmname = value!.trim();
+                                  },
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // 4. Soil Type
+                                const Text(
+                                  'نوع التربة',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff1C1C1C),
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                DropdownButtonFormField<String>(
+                                  validator: (String? value) {
+                                    if (value == null) {
+                                      return "برجاء اختيار نوع التربة";
+                                    }
+                                    return null;
+                                  },
+                                  onSaved: (String? value) {
+                                    soiltype = value;
+                                  },
+                                  isExpanded: true,
+                                  value: soiltype,
+                                  hint: const Text(
+                                    'اختر نوع التربة',
+                                    style: TextStyle(fontSize: 13, color: Color(0xffA5A5A5)),
+                                  ),
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xff777777)),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: const Color(0xffFAFAFA),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xffE0E0E0), width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xff006837), width: 1.5),
+                                    ),
+                                  ),
+                                  onChanged: (String? newValue) {
+                                    setState(() {
+                                      soiltype = newValue;
+                                    });
+                                  },
+                                  items: <String>['رملية', 'سلتية', 'طينية'].map<DropdownMenuItem<String>>((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(
+                                        value,
+                                        style: const TextStyle(fontSize: 14, color: Color(0xff1C1C1C)),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // 5. Discharge Rate ("معدل صرف الطرمبة")
+                                const Text(
+                                  'معدل صرف الطرمبة',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff1C1C1C),
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                TextFormField(
+                                  controller: dischargeController,
+                                  textAlign: TextAlign.right,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+                                  style: const TextStyle(fontSize: 14, color: Color(0xff1C1C1C)),
+                                  decoration: InputDecoration(
+                                    hintText: 'معدل صرف الطرمبة',
+                                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xffA5A5A5)),
+                                    filled: true,
+                                    fillColor: const Color(0xffFAFAFA),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    suffixIcon: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      margin: const EdgeInsets.symmetric(vertical: 4),
+                                      decoration: const BoxDecoration(
+                                        border: Border(
+                                          right: BorderSide(color: Color(0xffE0E0E0), width: 1),
+                                        ),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          value: dischargeUnit,
+                                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xff777777), size: 18),
+                                          style: const TextStyle(fontSize: 12, color: Color(0xff1C1C1C)),
+                                          onChanged: (String? newValue) {
+                                            setState(() {
+                                              dischargeUnit = newValue;
+                                            });
+                                          },
+                                          items: <String>['متر مكعب/ساعة', 'حصان', 'لتر/ثانية'].map<DropdownMenuItem<String>>((String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text(value),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xffE0E0E0), width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xff006837), width: 1.5),
+                                    ),
+                                  ),
+                                  validator: (String? value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return "برجاء ادخال صرف الطرومبة";
+                                    }
+                                    return null;
+                                  },
+                                  onSaved: (String? value) {
+                                    double rate = double.tryParse(value ?? '0') ?? 0;
+                                    if (dischargeUnit == 'حصان') {
+                                      rate *= 10;
+                                    } else if (dischargeUnit == 'لتر/ثانية') {
+                                      rate *= 3.6;
+                                    }
+                                    dischargeRate = rate;
+                                  },
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // 6. Fuel Usage ("استهلاك الوقود")
+                                const Text(
+                                  'استهلاك الوقود',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff1C1C1C),
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                TextFormField(
+                                  controller: gasUsageController,
+                                  textAlign: TextAlign.right,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+                                  style: const TextStyle(fontSize: 14, color: Color(0xff1C1C1C)),
+                                  decoration: InputDecoration(
+                                    hintText: 'استهلاك الوقود',
+                                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xffA5A5A5)),
+                                    filled: true,
+                                    fillColor: const Color(0xffFAFAFA),
+                                    suffixIcon: const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                      child: Text(
+                                        'لتر/ساعة',
+                                        style: TextStyle(fontSize: 12, color: Color(0xff777777), fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xffE0E0E0), width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xff006837), width: 1.5),
+                                    ),
+                                  ),
+                                  onSaved: (String? value) {
+                                    gasusage = double.tryParse(value ?? '0') ?? 0;
+                                  },
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // 7. Fuel Price ("سعر الوقود")
+                                const Text(
+                                  'سعر الوقود',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff1C1C1C),
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                TextFormField(
+                                  controller: gasPriceController,
+                                  textAlign: TextAlign.right,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)],
+                                  style: const TextStyle(fontSize: 14, color: Color(0xff1C1C1C)),
+                                  decoration: InputDecoration(
+                                    hintText: 'سعر الوقود',
+                                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xffA5A5A5)),
+                                    filled: true,
+                                    fillColor: const Color(0xffFAFAFA),
+                                    suffixIcon: const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                      child: Text(
+                                        'جنيه/لتر',
+                                        style: TextStyle(fontSize: 12, color: Color(0xff777777), fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xffE0E0E0), width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xff006837), width: 1.5),
+                                    ),
+                                  ),
+                                  onSaved: (String? value) {
+                                    gasprice = double.tryParse(value ?? '0') ?? 0;
+                                  },
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                // 8. Salty Soil Checkbox
+                                CheckboxListTile(
+                                  title: const Text(
+                                    'هل التربة مالحة؟',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xff1C1C1C)),
+                                  ),
+                                  value: salty,
+                                  activeColor: const Color(0xff006837),
+                                  onChanged: (newValue) {
+                                    setState(() {
+                                      salty = newValue ?? false;
+                                    });
+                                  },
+                                  controlAffinity: ListTileControlAffinity.leading,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // Submit Button ("+ إضافة المزرعة")
+                                SizedBox(
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: isLoading
+                                        ? null
+                                        : () async {
+                                            if (!formkey.currentState!.validate()) {
+                                              return;
+                                            }
+                                            formkey.currentState!.save();
+
+                                            setState(() {
+                                              isLoading = true;
+                                            });
+
+                                            SharedPreferences prefs = await SharedPreferences.getInstance();
+                                            String cookie = (prefs.getString('cookie') ?? '');
+                                            final user = await addFarmASYNC(
+                                              farmname ?? '',
+                                              government ?? '',
+                                              soiltype ?? '',
+                                              salty,
+                                              Lng,
+                                              Lat,
+                                              dischargeRate ?? 0,
+                                              gasusage ?? 0,
+                                              gasprice ?? 0,
+                                              cookie,
+                                            );
+
+                                            if (!user) {
+                                              Fluttertoast.showToast(
+                                                msg: "حاول مرة اخرى",
+                                                toastLength: Toast.LENGTH_SHORT,
+                                                gravity: ToastGravity.CENTER,
+                                                backgroundColor: const Color(0xffD32F2F),
+                                                textColor: Colors.white,
+                                                fontSize: 16.0,
+                                              );
+                                              setState(() {
+                                                isLoading = false;
+                                              });
+                                            } else {
+                                              Navigator.of(context).pushReplacement(goToFarms());
+                                              setState(() {
+                                                isLoading = false;
+                                              });
+                                            }
+                                          },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xff006837),
+                                      disabledBackgroundColor: const Color(0xb2006837),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: isLoading
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2.5,
+                                            ),
+                                          )
+                                        : Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: const [
+                                              Icon(Icons.add, color: Colors.white, size: 20),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'إضافة المزرعة',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-
-
-
 class DecimalTextInputFormatter extends TextInputFormatter {
-  DecimalTextInputFormatter({required this.decimalRange})
-      : assert(decimalRange == null || decimalRange > 0);
+  DecimalTextInputFormatter({required this.decimalRange}) : assert(decimalRange > 0);
 
   final int decimalRange;
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, // unused.
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     TextSelection newSelection = newValue.selection;
     String truncated = newValue.text;
     var myDouble = double.tryParse(newValue.text);
 
-    if(myDouble == null && newValue.text.length != 0)
-      return oldValue;
-    if (decimalRange != null) {
-      String value = newValue.text;
+    if (myDouble == null && newValue.text.isNotEmpty) return oldValue;
+    String value = newValue.text;
 
-      if (value.contains(".") &&
-          value.substring(value.indexOf(".") + 1).length > decimalRange) {
-        truncated = oldValue.text;
-        newSelection = oldValue.selection;
-      } else if (value == ".") {
-        truncated = "0.";
+    if (value.contains(".") && value.substring(value.indexOf(".") + 1).length > decimalRange) {
+      truncated = oldValue.text;
+      newSelection = oldValue.selection;
+    } else if (value == ".") {
+      truncated = "0.";
 
-        newSelection = newValue.selection.copyWith(
-          baseOffset: math.min(truncated.length, truncated.length + 1),
-          extentOffset: math.min(truncated.length, truncated.length + 1),
-        );
-      }
-
-      return TextEditingValue(
-        text: truncated,
-        selection: newSelection,
-        composing: TextRange.empty,
+      newSelection = newValue.selection.copyWith(
+        baseOffset: math.min(truncated.length, truncated.length + 1),
+        extentOffset: math.min(truncated.length, truncated.length + 1),
       );
     }
-    return newValue;
+
+    return TextEditingValue(
+      text: truncated,
+      selection: newSelection,
+      composing: TextRange.empty,
+    );
   }
 }
